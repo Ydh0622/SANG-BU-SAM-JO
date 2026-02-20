@@ -185,11 +185,9 @@ const ConsultationSearch: React.FC = () => {
 			<section className={styles.filterSection}>
 				<div className={styles.filterGrid}>
 					<div className={styles.inputGroup}>
-						{/* 💡 수정된 부분: htmlFor 속성 추가 */}
 						<label htmlFor="search-keyword">고객명 / 상담 ID</label>
 						<div className={styles.inputWrapper}>
 							<Search size={16} color="#888" />
-							{/* 💡 수정된 부분: id 속성 추가 */}
 							<input
 								id="search-keyword"
 								type="text"
@@ -202,11 +200,10 @@ const ConsultationSearch: React.FC = () => {
 					</div>
 
 					<div className={styles.inputGroup}>
-						{/* 💡 수정된 부분: htmlFor 속성 추가 */}
 						<label htmlFor="search-date">조회 기간</label>
 						<div className={styles.inputWrapper}>
 							<Calendar size={16} color="#888" />
-							{/* 💡 수정된 부분: id 속성 추가 */}
+
 							<input id="search-date" type="date" className={styles.input} />
 						</div>
 					</div>
