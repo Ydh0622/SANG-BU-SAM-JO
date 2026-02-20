@@ -1,42 +1,21 @@
-# EXAMPLE USAGE:
-#
-#   Refer for explanation to following link:
-#   https://lefthook.dev/configuration/
-#
-# pre-push:
-#   jobs:
-#     - name: packages audit
-#       tags:
-#         - frontend
-#         - security
-#       run: yarn audit
-#
-#     - name: gems audit
-#       tags:
-#         - backend
-#         - security
-#       run: bundle audit
-#
-# pre-commit:
-#   parallel: true
-#   jobs:
-#     - run: yarn eslint {staged_files}
-#       glob: "*.{js,ts,jsx,tsx}"
-#
-#     - name: rubocop
-#       glob: "*.rb"
-#       exclude:
-#         - config/application.rb
-#         - config/routes.rb
-#       run: bundle exec rubocop --force-exclusion {all_files}
-#
-#     - name: govet
-#       files: git ls-files -m
-#       glob: "*.go"
-#       run: go vet {files}
-#
-#     - script: "hello.js"
-#       runner: node
-#
-#     - script: "hello.go"
-#       runner: go run
+pre-push:
+  parallel: false
+  commands:
+    lint:
+      run: |
+        npm run lint-format
+      fail_text: "❌ Lint/Format 실패! push하기 전, npm run lint-format 실행하여 에러 수정 후, 다시 push해주세요."
+
+    build:
+      run: |
+        npm run build
+      stage_fixed: true
+      fail_text: "❌ Build 실패! push하기 전, npm run build 실행하여 에러 수정 후, 다시 push해주세요."
+
+pre-commit:
+  commands:
+    lint:
+      run: |
+        npm run lint-format
+      stage_fixed: true
+      fail_text: "❌ Lint/Format 실패! commit 하기 전, npm run lint-format 실행하여 에러 수정 후, 다시 push해주세요."

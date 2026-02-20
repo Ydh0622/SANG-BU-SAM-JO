@@ -75,13 +75,11 @@ export const useConsultation = () => {
 		return () => clearTimeout(timer);
 	}, [status, assignedCustomer]);
 
-	// ✅ [중요] Dashboard에서 필요한 모든 속성을 리턴합니다.
 	return {
 		status,
 		assignedCustomer,
 		setAssignedCustomer,
 		toggleWorkStatus,
-		// Dashboard에서 발생하는 'waitingCount' 속성 없음 에러 해결
 		waitingCount: WAITING_CUSTOMERS.length,
 	};
 };
