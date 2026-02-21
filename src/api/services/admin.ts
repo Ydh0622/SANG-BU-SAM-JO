@@ -1,4 +1,4 @@
-import { adminStore } from './client';
+import { adminStore } from '../client';
 
 interface SearchParams {
   searchTerm?: string;

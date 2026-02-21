@@ -354,7 +354,7 @@ export const arrowIcon = style({
 	flexShrink: 0,
 });
 
-/** 8. 가변 배지 스타일 (ERD 필드 연동) */
+/** 8. 가변 배지 스타일  */
 export const priorityBadge = styleVariants({
 	HIGH: {
 		color: UPLUS_MAGENTA,
@@ -385,7 +385,6 @@ export const priorityBadge = styleVariants({
 	},
 });
 
-// ✅ [추가] 처리 결과 표시 배지 스타일 (ERD status_code 대응)
 export const statusBadge = styleVariants({
 	DONE: {
 		color: "#166534",
