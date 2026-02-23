@@ -12,7 +12,7 @@ export const useConsultation = () => {
     const [status, setStatus] = useState<string>("OFFLINE");
     const [assignedCustomer, setAssignedCustomer] = useState<CustomerInfo | null>(null);
 
-    // ✨ 실시간 대기 인원을 시뮬레이션하기 위한 상태 (예: 기본 5명)
+    // 실시간 대기 인원을 시뮬레이션하기 위한 상태 (예: 기본 5명)
     const [waitingCount] = useState(5);
 
     useEffect(() => {

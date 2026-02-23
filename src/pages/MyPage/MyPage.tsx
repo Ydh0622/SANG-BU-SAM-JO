@@ -52,12 +52,17 @@ const MyPage = () => {
         return [...savedMemos, ...DUMMY_MEMOS];
     });
 
-    /** ✅ 프로필 정보 (이름 기본값: 유덕현) */
-    const [profile, setProfile] = useState({
-        name: localStorage.getItem("userName") || "유덕현",
-        email: "vip_care@uplus.co.kr",
-        dept: "고객케어팀 (서울)",
-        rank: "시니어 상담사"
+    /** ✅ 프로필 정보 초기화 (저장된 값에서 '상담사'를 제외한 이름만 추출) */
+    const [profile, setProfile] = useState(() => {
+        const savedFullName = localStorage.getItem("userName") || "유덕현";
+        // ' 상담사'라는 글자가 있으면 제거하고 이름만 가져옴
+        const pureName = savedFullName.replace(" 상담사", "");
+        return {
+            name: pureName,
+            email: "vip_care@uplus.co.kr",
+            dept: "고객케어팀 (서울)",
+            rank: "시니어 상담사"
+        };
     });
 
     const handleDeleteMemo = (targetId: number | string) => {
@@ -79,9 +84,11 @@ const MyPage = () => {
         setDisplayMemos([...DUMMY_MEMOS]);
     };
 
+    /** ✅ 저장 시 성함 뒤에 자동으로 ' 상담사'를 붙여서 저장 */
     const handleSaveProfile = () => {
-        localStorage.setItem("userName", profile.name);
-        alert("개인정보가 성공적으로 수정되었습니다.");
+        const fullName = `${profile.name} 상담사`;
+        localStorage.setItem("userName", fullName);
+        alert(`정보가 수정되었습니다. 이제 '${fullName}'님으로 표시됩니다.`);
     };
 
     return (
@@ -111,21 +118,40 @@ const MyPage = () => {
                         <div className={styles.card}>
                             <h2 className={styles.cardTitle}>프로필 설정</h2>
                             
-                            {/* ✨ 이름 입력란 디자인 강화 (폰트 및 굵기) */}
                             <div className={styles.inputGroup}>
                                 <label><User size={14} /> 이름</label>
-                                <input 
-                                    value={profile.name} 
-                                    onChange={(e) => setProfile({...profile, name: e.target.value})} 
-                                    placeholder="상담원 성함을 입력하세요"
-                                    style={{
-                                        fontSize: '18px',     // 폰트 크기 확대
-                                        fontWeight: 800,      // 폰트 굵기 강조
-                                        color: '#1A1A1A',     // 유플러스 블랙
-                                        padding: '14px',
-                                        border: '2px solid #F3F4F6'
-                                    }}
-                                />
+                                {/* ✨ 이름 입력란: 상담사 텍스트 고정 디자인 */}
+                                <div style={{ 
+                                    position: 'relative', 
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    width: '100%' 
+                                }}>
+                                    <input 
+                                        value={profile.name} 
+                                        onChange={(e) => setProfile({...profile, name: e.target.value})} 
+                                        placeholder="성함 입력"
+                                        style={{
+                                            fontSize: '18px',
+                                            fontWeight: 800,
+                                            color: '#1A1A1A',
+                                            padding: '14px 80px 14px 14px', // 우측 여백을 주어 상담사 글자와 안 겹치게 함
+                                            border: '2px solid #F3F4F6',
+                                            width: '100%',
+                                            borderRadius: '10px',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                    <span style={{
+                                        position: 'absolute',
+                                        right: '16px',
+                                        fontSize: '16px',
+                                        fontWeight: 600,
+                                        color: '#94A3B8' // 상담사 텍스트를 연한 회색으로 고정
+                                    }}>
+                                        상담사
+                                    </span>
+                                </div>
                             </div>
 
                             <div className={styles.inputGroup}>
