@@ -4,26 +4,52 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 import ConsultationDetail from "./pages/Consultation/ConsultationDetail";
 import ConsultationSearch from "./pages/Search/ConsultationSearch";
 import ConsultationHistory from "./pages/History/ConsultationHistory";
+import NoticeList from "./pages/Notice/NoticeList"; 
+import NoticeDetail from "./pages/Notice/NoticeDetail"; 
+import CustomerService from "./pages/Customer/CustomerService"; 
+import CustomerApply from "./pages/Customer/CustomerApply"; 
+import CustomerChat from "./pages/Customer/CustomerChat"; 
+import MyPage from "./pages/MyPage/MyPage";
+import NotificationPage from "./pages/Notification/Notification"; 
 
 function App() {
     return (
         <BrowserRouter>
             <div className="App">
                 <Routes>
-                    {/* 1. 로그인 페이지 */}
+                    {/* 1. 로그인 페이지 (진입점) */}
                     <Route path="/" element={<LoginPage />} />
                     
-                    {/* 2. 대시보드: 오늘 현황 확인 */}
+                    {/* 2. 대시보드: 메인 현황 및 상담 배정 팝업 확인 */}
                     <Route path="/dashboard" element={<Dashboard />} />
 
-                    {/* 3. 실시간 상담 상세(채팅): 실시간으로 고객과 대화 */}
+                    {/* 3. 실시간 상담 상세: 고객과 채팅 및 AI 요약/메모 수정 */}
                     <Route path="/consultation/:customerId" element={<ConsultationDetail />} />
 
-                    {/* 4. 상담 내역 검색: 전체 리스트 확인 및 필터링 */}
+                    {/* 4. 상담 내역 검색: 과거 기록 필터링 및 조회 */}
                     <Route path="/search" element={<ConsultationSearch />} />
 
-                    {/* 5. 상담 상세 이력: 과거 대화 기록 열람  */}
+                    {/* 5. 상담 상세 이력: 완료된 상담의 최종 요약본 확인 */}
                     <Route path="/history/:historyId" element={<ConsultationHistory />} />
+
+                    {/* 6. 공지사항: 리스트 및 상세 페이지 */}
+                    <Route path="/notice" element={<NoticeList />} />
+                    <Route path="/notice/:id" element={<NoticeDetail />} />
+
+                    {/* 7. 알림 센터: 상담사 개인 업무 알림 내역 히스토리 */}
+                    <Route path="/notifications" element={<NotificationPage />} />
+
+                    {/* 8. 마이페이지: 상담사 성과 확인 및 관리 페이지 진입 */}
+                    <Route path="/mypage" element={<MyPage />} />
+
+                    {/* 9. 시연용 고객 서비스 입구: 서비스 선택 화면 */}
+                    <Route path="/customer" element={<CustomerService />} />
+
+                    {/* 10.  고객 정보 입력: 채팅 시작 전 이름/연락처 입력 단계 */}
+                    <Route path="/customer/apply" element={<CustomerApply />} />
+
+                    {/* 11. 고객용 실시간 채팅 상세: 상담 수락 후 이동하는 화면 */}
+                    <Route path="/customer/chat" element={<CustomerChat />} />
                 </Routes>
             </div>
         </BrowserRouter>

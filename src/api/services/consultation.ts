@@ -3,16 +3,25 @@ import type { ConsultationResponse } from '../../types/consultation';
 
 /**
  * [상부상조] 상담 관련 API 서비스
- * * 💡 실서버 연결 방법:
+ * 💡 실서버 연결 방법:
  * 1. 상단 'import { apiStore, adminStore }' 주석 해제
- * 2. 각 함수에서 //  [REAL] 주석 해제
- * 3. 각 함수에서 //  [DELETE] 블록 전체 삭제
+ * 2. 각 함수에서 // [REAL] 주석 해제
+ * 3. 각 함수에서 // [DELETE] 블록 전체 삭제
  */
+
+// ✨ 상담 종료 시 전달할 데이터 규격 정의 (명세서 기반)
+export interface ConsultationCompleteRequest {
+    customer_request: string;
+    agent_action: string;
+    summary_text: string;
+    issue_type_code: string;
+    resolution_code: string;
+}
 
 // 1. 상담 목록 전체 조회 (어드민 8082 포트 사용)
 export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
   try {
-    //  [REAL] 실서버 연결 시 주석 해제
+    // [REAL] 실서버 연결 시 주석 해제
     // const response = await adminStore.get('/api/v1/consultations');
     // return response.data;
 
@@ -53,7 +62,7 @@ export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
 // 2. 개별 상담 상세 정보 조회 (API 8081 포트 사용)
 export const getConsultationDetail = async (customerId: string): Promise<ConsultationResponse> => {
   try {
-    //  [REAL] 실서버 연결 시 주석 해제
+    // [REAL] 실서버 연결 시 주석 해제
     // const response = await apiStore.get(`/api/v1/consultations/start-info/${customerId}`);
     // return response.data;
 
@@ -83,7 +92,7 @@ export const sendConsultationMessage = async (consultId: string, message: string
     // const response = await apiStore.post(`/api/v1/consultations/${consultId}/messages`, { message });
     // return response.data;
 
-    //  [DELETE] 시연용 가짜 성공 처리 (서버 연결 시 삭제)
+    // [DELETE] 시연용 가짜 성공 처리 (서버 연결 시 삭제)
     console.log(`Mock Send: [${consultId}] ${message}`);
     return Promise.resolve({ status: "success" });
   } catch (err) {
@@ -93,14 +102,16 @@ export const sendConsultationMessage = async (consultId: string, message: string
 };
 
 // 4. 상담 종료 및 확정 (API 8081 포트 사용)
-export const completeConsultation = async (consultId: string) => {
+// ✨ 수정: 데이터(data) 인수를 추가로 받도록 변경
+export const completeConsultation = async (consultId: string, data: ConsultationCompleteRequest) => {
   try {
-    //  [REAL] 실서버 연결 시 주석 해제
-    // const response = await apiStore.post(`/api/v1/consultations/${consultId}/complete`);
+    // [REAL] 실서버 연결 시 주석 해제
+    // const response = await apiStore.post(`/api/v1/consultations/${consultId}/complete`, data);
     // return response.data;
 
     // 🗑️[DELETE] 시연용 가짜 성공 처리 (서버 연결 시 삭제)
     console.log(`Mock Complete: Consultation ${consultId} closed.`);
+    console.log("Sent Data:", data); // 시연 시 로그로 데이터 확인 가능
     return Promise.resolve({ status: "success" });
   } catch (err) {
     console.warn("상담 종료 실패:", err);

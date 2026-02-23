@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google"; 
 import { authApi } from "../../api/services/auth"; 
+import { MessageSquare, ArrowRight } from "lucide-react"; 
 
 import googleLogo from "../../assets/image/google.png"; 
 import * as styles from "./Style/Login.css.ts";
@@ -16,43 +17,25 @@ const LoginPage: React.FC = () => {
             if (isLoggingIn) return;
             try {
                 setIsLoggingIn(true);
-                
                 const { code } = codeResponse;
-                console.log("구글 인가 코드 획득:", code);
-
                 const response = await authApi.loginWithGoogle(code!);
                 
-                /**
-                 * -------------------------------------------------------
-                 * [현재: Mock 모드] authApi에서 준 데이터를 바로 사용
-                 * -------------------------------------------------------
-                 */
                 const accessToken = response.accessToken; 
-                const userName = response.user.name; //  가짜 데이터에서 이름을 가져옴
+                const userName = response.user.name; 
 
-                /**
-                 * [나중에: 서버 연결 시] 아래 주석을 풀어서 사용하세요
-                 * const accessToken = response.data.accessToken;
-                 * const userName = response.data.user.name;
-                 */
-
-                // (localStorage)에 데이터 담기
                 localStorage.setItem('token', accessToken);
                 localStorage.setItem('userName', userName); 
                 
-                console.log("로그인 성공! 이름:", userName);
-                
                 navigate("/dashboard", { replace: true }); 
-
             } catch (e) {
-                console.error("로그인 API 통신 실패:", e);
-                alert("상부상조 시스템 로그인에 실패했습니다.");
+                console.error("로그인 실패:", e);
+                alert("로그인에 실패했습니다.");
             } finally {
                 setIsLoggingIn(false);
             }
         },
         onError: (error) => {
-            console.error("구글 인증 자체 실패:", error);
+            console.error("인증 실패:", error);
             alert("구글 인증에 실패했습니다.");
         },
         flow: 'auth-code', 
@@ -73,6 +56,7 @@ const LoginPage: React.FC = () => {
                     해결해 드립니다.
                 </p>
 
+                {/* 상담사 구글 로그인 버튼 */}
                 <button
                     type="button"
                     className={styles.googleButton}
@@ -93,10 +77,61 @@ const LoginPage: React.FC = () => {
                     )}
                 </button>
 
+                {/* ✨ 수정된 고객 시연 진입 섹션 */}
+                <div style={{ 
+                    marginTop: '32px', 
+                    paddingTop: '24px', 
+                    borderTop: '1px solid #F1F3F5',
+                    width: '100%'
+                }}>
+                    <p style={{ 
+                        fontSize: '12px', 
+                        color: '#999', 
+                        marginBottom: '12px',
+                        textAlign: 'center'
+                    }}>
+                        상담 프로세스 확인을 위한 시연 모드
+                    </p>
+                    <button 
+                        type="button"
+                        /** 💡 포인트: /customer 대신 /customer/apply로 바로 연결하여 정보 입력을 유도합니다. */
+                        onClick={() => navigate('/customer/apply')}
+                        style={{ 
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            padding: '14px',
+                            borderRadius: '12px',
+                            border: '1.5px solid #E6007E',
+                            backgroundColor: '#FFF',
+                            color: '#E6007E',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFF0F6';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFF';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                    >
+                        <MessageSquare size={16} />
+                        고객 상담 신청하기 (시연용)
+                        <ArrowRight size={14} />
+                    </button>
+                </div>
+
                 <button
                     type="button"
                     className={styles.footerText}
-                    onClick={() => alert("고객센터로 문의해주세요.")}
+                    onClick={() => alert("관리자에게 문의해주세요.")}
+                    style={{ marginTop: '24px' }}
                 >
                     로그인에 문제가 있으신가요?
                 </button>
