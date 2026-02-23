@@ -52,10 +52,10 @@ const MyPage = () => {
         return [...savedMemos, ...DUMMY_MEMOS];
     });
 
-    /** ✅ 프로필 정보 초기화 (저장된 값에서 '상담사'를 제외한 이름만 추출) */
+    /** ✅ 프로필 정보 초기화 (저장된 값에서 '상담사'를 제외한 이름만 추출하여 input에 표시) */
     const [profile, setProfile] = useState(() => {
         const savedFullName = localStorage.getItem("userName") || "유덕현";
-        // ' 상담사'라는 글자가 있으면 제거하고 이름만 가져옴
+        // 이미 ' 상담사'가 붙어있다면 제거하고 순수 이름만 가져옴
         const pureName = savedFullName.replace(" 상담사", "");
         return {
             name: pureName,
@@ -84,11 +84,18 @@ const MyPage = () => {
         setDisplayMemos([...DUMMY_MEMOS]);
     };
 
-    /** ✅ 저장 시 성함 뒤에 자동으로 ' 상담사'를 붙여서 저장 */
+    /** ✅ [핵심 수정] 저장 시 사용자가 입력한 이름 뒤에 자동으로 ' 상담사'를 붙여서 저장 */
     const handleSaveProfile = () => {
-        const fullName = `${profile.name} 상담사`;
-        localStorage.setItem("userName", fullName);
-        alert(`정보가 수정되었습니다. 이제 '${fullName}'님으로 표시됩니다.`);
+        const pureName = profile.name.trim();
+        if (!pureName) {
+            alert("이름을 입력해주세요.");
+            return;
+        }
+
+        const fullName = `${pureName} 상담사`; // 무조건 '상담사' 호칭 결합
+        localStorage.setItem("userName", fullName); // 시스템 전체 데이터(localStorage)에 저장
+        
+        alert(`성함이 '${fullName}'로 성공적으로 수정되었습니다.`);
     };
 
     return (
@@ -120,7 +127,7 @@ const MyPage = () => {
                             
                             <div className={styles.inputGroup}>
                                 <label><User size={14} /> 이름</label>
-                                {/* ✨ 이름 입력란: 상담사 텍스트 고정 디자인 */}
+                                {/* ✨ 이름 입력란 디자인: 오른쪽에 '상담사' 텍스트 고정 */}
                                 <div style={{ 
                                     position: 'relative', 
                                     display: 'flex', 
@@ -135,7 +142,7 @@ const MyPage = () => {
                                             fontSize: '18px',
                                             fontWeight: 800,
                                             color: '#1A1A1A',
-                                            padding: '14px 80px 14px 14px', // 우측 여백을 주어 상담사 글자와 안 겹치게 함
+                                            padding: '14px 80px 14px 14px',
                                             border: '2px solid #F3F4F6',
                                             width: '100%',
                                             borderRadius: '10px',
@@ -147,7 +154,7 @@ const MyPage = () => {
                                         right: '16px',
                                         fontSize: '16px',
                                         fontWeight: 600,
-                                        color: '#94A3B8' // 상담사 텍스트를 연한 회색으로 고정
+                                        color: '#94A3B8' // 상담사 문구는 고정된 회색 폰트
                                     }}>
                                         상담사
                                     </span>
