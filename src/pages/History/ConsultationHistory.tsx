@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as styles from "./Style/HistoryDetail.css.ts";
 
-/** ✅ 1. ERD 명세 기반 타입 정의 */
+/** 1. ERD 명세 기반 타입 정의 */
 interface Message {
     id: number;
     sender_type_code: "CUSTOMER" | "AGENT" | "SYSTEM";
@@ -36,7 +36,7 @@ interface HistoryData {
     messages: Message[];
 }
 
-/** 💡 목데이터 DB (김철수와 고길동 상세 데이터 포함) */
+/**  목데이터 DB (김철수와 고길동 상세 데이터 포함) */
 const MOCK_HISTORY_DB: Record<string, HistoryData> = {
     "102938": {
         consultation_id: "102938",
@@ -55,7 +55,7 @@ const MOCK_HISTORY_DB: Record<string, HistoryData> = {
             { id: 2, sender_type_code: "AGENT", content: "안녕하세요 김철수 고객님! 5G 시그니처로 옮기시면 결합 할인이 커져서 유리합니다.", sent_at: "10:45" },
         ],
     },
-    /** ✨ 고길동 상세 데이터 추가 */
+    /** 고길동 상세 데이터 추가 */
     "102939": {
         consultation_id: "102939",
         started_at: "2026.02.23 09:15",

@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Phone, Mail, MessageCircle, ArrowRight } from "lucide-react";
+import { User, Phone, Mail, MessageCircle, ArrowRight, Loader2 } from "lucide-react";
 import * as styles from "./Style/CustomerApply.css.ts";
 
 const CustomerApply: React.FC = () => {
     const navigate = useNavigate();
+
+    // 1. 제출 중 상태값 추가 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
@@ -16,22 +20,44 @@ const CustomerApply: React.FC = () => {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // 1. 입력된 정보를 localStorage에 저장하여 상담사 화면 및 대기 화면과 연동
-        const customerData = {
-            ...formData,
-            appliedAt: new Date().toISOString(),
-            id: `CUST_${Date.now()}`,
-        };
-        localStorage.setItem("currentCustomer", JSON.stringify(customerData));
-        
-        // 2. 초기 매칭 상태 설정 (대기 화면 진입 전 초기화)
-        localStorage.setItem("isMatched", "false");
+        //  2. 중복 클릭 차단 (이미 제출 중이면 실행 안 함)
+        if (isSubmitting) return;
 
-        // 🚀 3. 수정된 경로: 바로 채팅방이 아닌 '상담 대기 및 연결 화면'으로 이동
-        navigate("/customer");
+        setIsSubmitting(true);
+
+        try {
+            // 시뮬레이션을 위해 짧은 대기 (사용자 피드백용)
+            await new Promise((resolve) => setTimeout(resolve, 800));
+
+            const newCustomer = {
+                id: `CUST_${Date.now()}`,
+                name: formData.name,
+                inquiryMessage: "실시간 채팅 상담 신청",
+                recentHistory: "신규 상담 신청 고객입니다.",
+                appliedAt: new Date().toISOString(),
+            };
+
+            // 데이터 저장 및 큐 관리
+            const waitingList = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
+            waitingList.push(newCustomer);
+            localStorage.setItem("waitingCustomers", JSON.stringify(waitingList));
+            localStorage.setItem("realtime_waiting_count", waitingList.length.toString());
+            localStorage.setItem("assignedCustomer", JSON.stringify(newCustomer));
+            localStorage.setItem("currentCustomer", JSON.stringify(newCustomer));
+            localStorage.setItem("isMatched", "false");
+
+            // 페이지 이동
+            navigate("/customer");
+        } catch (error) {
+            console.error("신청 오류:", error);
+        } finally {
+            // 에러가 나더라도 버튼을 다시 활성화하거나 상황에 맞게 처리
+            // 여기서는 이동하므로 상태 초기화는 생략 가능하나 안정성을 위해 유지
+            // setIsSubmitting(false);
+        }
     };
 
     return (
@@ -102,12 +128,38 @@ const CustomerApply: React.FC = () => {
                         </div>
                     </div>
 
-                    <button type="submit" className={styles.submitBtn}>
-                        {/* CSS에서 정의한 반짝임 효과 */}
-                        <span className={styles.btnShimmer} />
-                        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            상담 신청하기
-                            <ArrowRight size={20} />
+                    {/*  버튼 비활성화 및 인라인 애니메이션 적용으로 에러 해결 */}
+                    <button 
+                        type="submit" 
+                        className={styles.submitBtn} 
+                        disabled={isSubmitting}
+                        style={{ 
+                            opacity: isSubmitting ? 0.7 : 1, 
+                            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                            position: 'relative'
+                        }}
+                    >
+                        {!isSubmitting && <span className={styles.btnShimmer} />}
+                        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                            {isSubmitting ? (
+                                <>
+                                    처리 중... 
+                                    <Loader2 
+                                        size={20} 
+                                        style={{ 
+                                            animation: 'spin 1s linear infinite' 
+                                        }} 
+                                    />
+                                    <style>{`
+                                        @keyframes spin {
+                                            from { transform: rotate(0deg); }
+                                            to { transform: rotate(360deg); }
+                                        }
+                                    `}</style>
+                                </>
+                            ) : (
+                                <>상담 신청하기 <ArrowRight size={20} /></>
+                            )}
                         </div>
                     </button>
                 </form>

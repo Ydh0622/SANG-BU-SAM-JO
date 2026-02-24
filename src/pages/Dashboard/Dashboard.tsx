@@ -18,26 +18,19 @@ import {
     Save,
 } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation";
+import { useLocalStorage } from "../../hooks/useLocalStorage"; 
 import { fetchConsultations } from "../../api/services/consultation"; 
 import type { ConsultationResponse } from "../../types/consultation"; 
 import * as styles from "./Style/Dashboard.css.ts";
 
-/** 로컬 스토리지 데이터 규격을 위한 인터페이스 정의 */
-interface LocalConsultationHistory {
-    consultation_id: string | number;
-    customer_name: string;
-    category: string;
-    issue_detail: string;
-    content_preview: string;
-    status: string;
-    priority: string;
-    channel_type: string;
-    created_at: string;
-}
+/** * ✨ [해결] 인터페이스 선언 대신 Type Alias를 사용하거나, 
+ * 부모 타입을 그대로 사용하도록 수정하여 "no members" 에러를 방지합니다.
+ */
+type LocalHistory = ConsultationResponse;
 
 const NOTICES = [
     { id: 1, title: "[점검] AI 상담 요약 엔진 정기 점검 안내", date: "02.21" },
@@ -51,7 +44,6 @@ const Dashboard: React.FC = () => {
         toggleWorkStatus,
         assignedCustomer,
         setAssignedCustomer,
-        waitingCount,
     } = useConsultation();
     
     const navigate = useNavigate();
@@ -59,17 +51,64 @@ const Dashboard: React.FC = () => {
     
     const [adminName] = useState(() => localStorage.getItem("userName") || "상담원");
     const [now, setNow] = useState(new Date());
-    const [memo, setMemo] = useState("");
     const [showGuide, setShowGuide] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const [notifications, setNotifications] = useState([
+    // 실시간 대기열 상세 모달 상태
+    const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+
+    /** 보안 및 접근 제어 로직 */
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            alert("보안을 위해 로그인이 필요합니다.");
+            navigate("/", { replace: true });
+        }
+    }, [navigate]);
+
+    /** [실시간 대기열] 로컬스토리지 기반 관리 */
+    const [realtimeWaitingCount, setRealtimeWaitingCount] = useLocalStorage<number>("realtime_waiting_count", 0);
+
+    // 대기열 리스트 실시간 데이터 추출
+    const waitingList = useMemo<CustomerInfo[]>(() => {
+        const list = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
+        return list;
+    }, [realtimeWaitingCount]);
+
+    /** 메모 및 알림 저장 */
+    const [memo, setMemo] = useLocalStorage<string>("dashboard_memo", "");
+    const [notifications, setNotifications] = useLocalStorage("dashboard_notifications", [
         { id: 1, title: "긴급장애: 서울 IPTV 수신 불량", type: "urgent", time: "방금 전", isRead: false },
         { id: 2, title: "새로운 업무 가이드가 배포되었습니다.", type: "notice", time: "2시간 전", isRead: false },
         { id: 3, title: "오전 상담 실적 통계가 집계되었습니다.", type: "report", time: "4시간 전", isRead: true },
     ]);
+
+    /** 오늘 완료된 상담 건수 자동 계산 */
+    const completedCount = useMemo(() => {
+        return activities.filter(activity => activity.status === 'DONE').length;
+    }, [activities]);
+
+    /** 대기열에서 다음 고객을 꺼내 배정하는 함수 */
+    const assignNextCustomer = useCallback(() => {
+        if (workStatus !== "AVAILABLE" || assignedCustomer) return;
+
+        const currentWaiting: CustomerInfo[] = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
+        
+        if (currentWaiting.length > 0) {
+            const nextCustomer = currentWaiting[0];
+            const remaining = currentWaiting.slice(1);
+            
+            localStorage.setItem("waitingCustomers", JSON.stringify(remaining));
+            localStorage.setItem("realtime_waiting_count", remaining.length.toString());
+            
+            setAssignedCustomer(nextCustomer);
+            setRealtimeWaitingCount(remaining.length);
+        } else {
+            setAssignedCustomer(null);
+        }
+    }, [workStatus, assignedCustomer, setAssignedCustomer, setRealtimeWaitingCount]);
 
     /** 상담 수락 핸들러 */
     const handleAcceptConsultation = useCallback(
@@ -80,61 +119,55 @@ const Dashboard: React.FC = () => {
                 customerName: customer.name,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }));
+
+            setAssignedCustomer(null);
             navigate(`/consultation/${customer.id}`);
         },
-        [navigate],
+        [navigate, setAssignedCustomer],
     );
 
-    /** 내역 삭제 핸들러 */
-    const handleDeleteActivity = useCallback((e: React.MouseEvent, consultationId: string | number) => {
-        e.stopPropagation();
-        if (window.confirm("이 상담 내역을 삭제하시겠습니까?")) {
-            setActivities(prev => prev.filter(item => item.consultation_id !== consultationId));
-            const localHistoryRaw = localStorage.getItem("consultationHistory");
-            if (localHistoryRaw) {
-                const localHistory: LocalConsultationHistory[] = JSON.parse(localHistoryRaw);
-                const updatedHistory = localHistory.filter(
-                    (item) => item.consultation_id !== consultationId
-                );
-                localStorage.setItem("consultationHistory", JSON.stringify(updatedHistory));
-            }
-        }
-    }, []);
+    /** 상담 거절 핸들러 */
+    const handleRejectConsultation = useCallback(() => {
+        setAssignedCustomer(null);
+    }, [setAssignedCustomer]);
 
-    /** ✨ [수정된 부분] 모든 상세 내역 클릭 시 '상담 이력(대화기록)' 페이지로 이동 */
-    const handleNavigateToDetail = (id: string | number) => {
-        // 이미 종료된 내역이므로 채팅방(/consultation)이 아닌 이력 상세(/history)로 보냅니다.
-        navigate(`/history/${id}`);
-    };
-
-    /** 실시간 배정 고객 데이터 동기화 */
+    /** 실시간 감시 로직 */
     useEffect(() => {
-        if (assignedCustomer) {
-            const storedCustomer = localStorage.getItem("currentCustomer");
-            if (storedCustomer) {
-                const customerData = JSON.parse(storedCustomer);
-                if (customerData.name && assignedCustomer.name !== customerData.name) {
-                    setAssignedCustomer({
-                        ...assignedCustomer,
-                        name: customerData.name,
-                        id: customerData.id || assignedCustomer.id
-                    });
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === "waitingCustomers") {
+                const newList: CustomerInfo[] = JSON.parse(e.newValue || "[]");
+                setRealtimeWaitingCount(newList.length);
+                
+                if (workStatus === "AVAILABLE" && !assignedCustomer && newList.length > 0) {
+                    assignNextCustomer();
                 }
             }
-        }
-    }, [assignedCustomer, setAssignedCustomer]);
+            if (e.key === "realtime_waiting_count") {
+                setRealtimeWaitingCount(Number(e.newValue || "0"));
+            }
+        };
 
-    /** 데이터 통합 로드 */
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, [workStatus, assignedCustomer, assignNextCustomer, setRealtimeWaitingCount]);
+
+    /** 데이터 로드 로직 (Any 및 Interface 경고 해결 버전) */
     useEffect(() => {
         const loadDashboardData = async () => {
             try {
                 setIsLoading(true);
-                const apiData = await fetchConsultations();
+                const apiData: ConsultationResponse[] = await fetchConsultations();
                 const localHistoryRaw = localStorage.getItem("consultationHistory");
-                const localHistory: LocalConsultationHistory[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
                 
-                const combinedData = [...localHistory, ...apiData];
-                setActivities(combinedData as ConsultationResponse[]);
+                // ✨ LocalHistory 타입을 명시적으로 사용하여 any 방지
+                const localHistory: LocalHistory[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
+                
+                // ✨ 타입 안정성을 확보하며 병합
+                const combinedData: ConsultationResponse[] = [
+                    ...localHistory, 
+                    ...apiData
+                ];
+                setActivities(combinedData);
             } catch (error) {
                 console.error("데이터 로드 실패:", error);
             } finally {
@@ -153,29 +186,15 @@ const Dashboard: React.FC = () => {
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     };
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-                setIsNotificationOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
     const handleLogout = useCallback(() => {
         if (window.confirm("로그아웃 하시겠습니까?")) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("userName");
+            localStorage.clear();
             navigate("/", { replace: true });
         }
     }, [navigate]);
 
     const handleSaveDashboardMemo = useCallback(() => {
-        if (!memo.trim()) {
-            alert("내용을 입력해주세요.");
-            return;
-        }
+        if (!memo.trim()) return alert("내용을 입력해주세요.");
         const newMemo = {
             id: Date.now(),
             date: new Date().toLocaleDateString("ko-KR"),
@@ -186,12 +205,24 @@ const Dashboard: React.FC = () => {
         const existingMemos = JSON.parse(localStorage.getItem("savedMemos") || "[]");
         localStorage.setItem("savedMemos", JSON.stringify([newMemo, ...existingMemos]));
         alert("메모가 저장되었습니다!");
-        setMemo("");
     }, [memo]);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(timer);
+    }, []);
+
+    const handleDeleteActivity = useCallback((e: React.MouseEvent, consultationId: string | number) => {
+        e.stopPropagation();
+        if (window.confirm("이 상담 내역을 삭제하시겠습니까?")) {
+            setActivities(prev => prev.filter(item => item.consultation_id !== consultationId));
+            const localHistoryRaw = localStorage.getItem("consultationHistory");
+            if (localHistoryRaw) {
+                const localHistory: LocalHistory[] = JSON.parse(localHistoryRaw);
+                const updatedHistory = localHistory.filter((item) => item.consultation_id !== consultationId);
+                localStorage.setItem("consultationHistory", JSON.stringify(updatedHistory));
+            }
+        }
     }, []);
 
     return (
@@ -206,6 +237,7 @@ const Dashboard: React.FC = () => {
                             {now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}{" "}
                             {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
+
                         <div style={{ position: 'relative' }} ref={popoverRef}>
                             <button type="button" className={styles.iconButton} onClick={() => setIsNotificationOpen(!isNotificationOpen)}>
                                 <Bell size={22} color="#1A1A1A" strokeWidth={2.5} />
@@ -264,13 +296,24 @@ const Dashboard: React.FC = () => {
                         </section>
 
                         <div className={styles.statsGrid}>
-                            <div className={styles.statCard}>
+                            <div 
+                                className={styles.statCard} 
+                                onClick={() => setIsQueueModalOpen(true)}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
-                                <div><span className={styles.statLabel}>실시간 대기</span><div className={styles.statValue}>{waitingCount}명</div></div>
+                                <div>
+                                    <span className={styles.statLabel}>실시간 대기</span>
+                                    <div className={styles.statValue}>{realtimeWaitingCount}명</div>
+                                    <span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span>
+                                </div>
                             </div>
                             <div className={styles.statCard}>
                                 <div className={styles.statIcon} style={{ background: "#F0FDF4", color: "#22C55E" }}><CheckCircle2 size={20} /></div>
-                                <div><span className={styles.statLabel}>오늘 완료</span><div className={styles.statValue}>12건</div></div>
+                                <div>
+                                    <span className={styles.statLabel}>오늘 완료</span>
+                                    <div className={styles.statValue}>{completedCount}건</div>
+                                </div>
                             </div>
                             <div className={styles.statCard} onClick={() => navigate('/mypage')} style={{ cursor: 'pointer' }}>
                                 <div className={styles.statIcon} style={{ background: "#E6F0FF", color: "#007AFF" }}><FileText size={20} /></div>
@@ -289,7 +332,7 @@ const Dashboard: React.FC = () => {
                                 ) : activities.length > 0 ? (
                                     activities.slice(0, 5).map((log) => (
                                         <div key={log.consultation_id} style={{ position: 'relative' }}>
-                                            <button type="button" className={styles.activityItem} onClick={() => handleNavigateToDetail(log.consultation_id)}>
+                                            <button type="button" className={styles.activityItem} onClick={() => navigate(`/history/${log.consultation_id}`)}>
                                                 <div className={styles.timeTag}>
                                                     {log.channel_type === "CALL" ? <Phone size={18} /> : <MessageSquare size={18} />}
                                                 </div>
@@ -309,11 +352,9 @@ const Dashboard: React.FC = () => {
                                             <button 
                                                 type="button"
                                                 onClick={(e) => handleDeleteActivity(e, log.consultation_id)}
-                                                style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px', borderRadius: '50%', border: 'none', backgroundColor: 'rgba(0,0,0,0.05)', color: '#999', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#E6007E'; e.currentTarget.style.color = '#FFF'; }}
-                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = '#999'; }}
+                                                style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer' }}
                                             >
-                                                <X size={12} strokeWidth={3} />
+                                                <X size={12} color="#999" />
                                             </button>
                                         </div>
                                     ))
@@ -330,11 +371,11 @@ const Dashboard: React.FC = () => {
                                 <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}><Edit3 size={18} color="#E6007E" /> 나의 메모</h3>
                                 <button type="button" onClick={handleSaveDashboardMemo} style={{ fontSize: '12px', padding: '6px 12px', background: '#1A1A1A', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Save size={14} /> 저장</button>
                             </div>
-                            <textarea className={styles.memoArea} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="상담 키워드를 메모하세요..." />
+                            <textarea className={styles.memoArea} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder=" 메모하세요" />
                         </section>
                         <section className={styles.glassCard}>
                             <h3 className={styles.cardTitle}><Hash size={18} color="#007AFF" /> 실시간 키워드</h3>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "16px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "16px" }}> 
                                 {["5G 요금제", "결합할인", "유심교체", "해외로밍", "멤버십"].map((tag) => (<span key={tag} className={styles.categoryTag}>#{tag}</span>))}
                             </div>
                         </section>
@@ -353,6 +394,53 @@ const Dashboard: React.FC = () => {
                 </div>
             </main>
 
+            {/* 실시간 대기열 상세 모달 */}
+            {isQueueModalOpen && (
+                <div className={styles.modalOverlay} onClick={() => setIsQueueModalOpen(false)}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                            <div className={styles.aiGlowBadge}>LIVE QUEUE</div>
+                            <button type="button" onClick={() => setIsQueueModalOpen(false)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
+                                <X size={24} color="#999" />
+                            </button>
+                        </div>
+                        <h2 className={styles.modalHeading}>실시간 대기 고객 명단</h2>
+                        
+                        <div style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
+                            {waitingList.length > 0 ? (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid #f0f0f0', color: '#888', fontSize: '13px' }}>
+                                            <th style={{ padding: '10px 5px' }}>순번</th>
+                                            <th style={{ padding: '10px 5px' }}>고객명</th>
+                                            <th style={{ padding: '10px 5px' }}>문의내용</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {waitingList.map((customer, index) => (
+                                            <tr key={customer.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                                                <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
+                                                <td style={{ padding: '12px 5px', fontWeight: 600 }}>{customer.name}</td>
+                                                <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
+                                                    {customer.inquiryMessage.length > 18 ? customer.inquiryMessage.slice(0, 18) + '...' : customer.inquiryMessage}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+                                    <Users size={40} style={{ opacity: 0.2, marginBottom: '10px' }} />
+                                    <p>현재 대기 중인 고객이 없습니다.</p>
+                                </div>
+                            )}
+                        </div>
+                        <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '24px' }} onClick={() => setIsQueueModalOpen(false)}>닫기</button>
+                    </div>
+                </div>
+            )}
+
+            {/* 새로운 상담 배정 모달 */}
             {assignedCustomer && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.premiumModal}>
@@ -367,12 +455,13 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div className={styles.modalActions}>
                             <button type="button" className={styles.primaryBtn} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
-                            <button type="button" className={styles.secondaryBtn} onClick={() => setAssignedCustomer(null)}>거절</button>
+                            <button type="button" className={styles.secondaryBtn} onClick={handleRejectConsultation}>거절</button>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* 장애 대응 가이드 모달 */}
             {showGuide && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.premiumModal} style={{ maxWidth: "600px" }}>
