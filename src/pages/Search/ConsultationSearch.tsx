@@ -45,28 +45,28 @@ interface LocalHistoryItem {
 }
 
 const MOCK_RESULTS: SearchResult[] = [
-    {
-        id: "102938",
-        date: "2026.02.11",
-        customer: "김철수",
-        category: "요금제",
-        summary: "5G 가족결합 할인 누락 건 소급 적용 안내",
-        agent: "나상담",
-        is_mine: true,
-        is_repeat: true,
-        process_status: "COMPLETED",
-    },
-    {
-        id: "102939",
-        date: "2026.02.10",
-        customer: "고길동",
-        category: "기기변경",
-        summary: "아이폰 17 프로 사전예약 및 보상판매 문의",
-        agent: "나상담",
-        is_mine: true,
-        is_repeat: false,
-        process_status: "PENDING",
-    },
+    // {
+    //     id: "102938",
+    //     date: "2026.02.11",
+    //     customer: "김철수",
+    //     category: "요금제",
+    //     summary: "5G 가족결합 할인 누락 건 소급 적용 안내",
+    //     agent: "나상담",
+    //     is_mine: true,
+    //     is_repeat: true,
+    //     process_status: "COMPLETED",
+    // },
+    // {
+    //     id: "102939",
+    //     date: "2026.02.10",
+    //     customer: "고길동",
+    //     category: "기기변경",
+    //     summary: "아이폰 17 프로 사전예약 및 보상판매 문의",
+    //     agent: "나상담",
+    //     is_mine: true,
+    //     is_repeat: false,
+    //     process_status: "PENDING",
+    // },
 ];
 
 const ConsultationSearch: React.FC = () => {

@@ -8,7 +8,6 @@ import {
     ChevronRight, 
     BarChart3, 
     TrendingUp,   
-    Calendar,
     X, 
     Trash2 
 } from "lucide-react";
@@ -22,12 +21,6 @@ interface MemoItem {
     category: string;
     content: string;
 }
-
-const DUMMY_MEMOS: MemoItem[] = [
-    { id: 1, date: "2026-02-19", customer: "김철수", category: "요금문의", content: "가족 결합 할인 소급 적용 건 처리 완료. 다음 달 명세서 확인 요망." },
-    { id: 2, date: "2026-02-18", customer: "이영희", category: "기기변경", content: "단말기 파손 보상 보험 접수 안내. 서류 팩스 대기 중." },
-    { id: 3, date: "2026-02-15", customer: "박민수", category: "장애신고", content: "IPTV 셋톱박스 신호 불량 원격 초기화 조치." }
-];
 
 const ProgressBar = ({ label, value, color }: { label: string, value: number, color: string }) => (
     <div style={{ marginBottom: '16px' }}>
@@ -45,17 +38,15 @@ const MyPage = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'profile' | 'memo' | 'stats'>('profile');
 
-    /** ✅ 저장된 메모 불러오기 */
+    /** ✨ 저장된 메모 불러오기 (목데이터 제거, 실제 저장된 데이터만 표시) */
     const [displayMemos, setDisplayMemos] = useState<MemoItem[]>(() => {
         const localData = localStorage.getItem("savedMemos");
-        const savedMemos: MemoItem[] = localData ? JSON.parse(localData) : [];
-        return [...savedMemos, ...DUMMY_MEMOS];
+        return localData ? JSON.parse(localData) : [];
     });
 
-    /** ✅ 프로필 정보 초기화 (저장된 값에서 '상담사'를 제외한 이름만 추출하여 input에 표시) */
+    /** 프로필 정보 초기화 */
     const [profile, setProfile] = useState(() => {
         const savedFullName = localStorage.getItem("userName") || "유덕현";
-        // 이미 ' 상담사'가 붙어있다면 제거하고 순수 이름만 가져옴
         const pureName = savedFullName.replace(" 상담사", "");
         return {
             name: pureName,
@@ -67,34 +58,30 @@ const MyPage = () => {
 
     const handleDeleteMemo = (targetId: number | string) => {
         if (!window.confirm("이 상담 메모를 삭제하시겠습니까?")) return;
-        const updatedList = displayMemos.filter(memo => memo.id !== targetId);
-        setDisplayMemos(updatedList);
-
+        
         const localData = localStorage.getItem("savedMemos");
         if (localData) {
             const savedMemos: MemoItem[] = JSON.parse(localData);
             const filteredLocal = savedMemos.filter(memo => memo.id !== targetId);
             localStorage.setItem("savedMemos", JSON.stringify(filteredLocal));
+            setDisplayMemos(filteredLocal);
         }
     };
 
     const handleDeleteAll = () => {
-        if (!window.confirm("모든 저장된 메모를 삭제하시겠습니까? (더미 제외)")) return;
+        if (!window.confirm("모든 저장된 메모를 삭제하시겠습니까?")) return;
         localStorage.removeItem("savedMemos");
-        setDisplayMemos([...DUMMY_MEMOS]);
+        setDisplayMemos([]);
     };
 
-    /** ✅ [핵심 수정] 저장 시 사용자가 입력한 이름 뒤에 자동으로 ' 상담사'를 붙여서 저장 */
     const handleSaveProfile = () => {
         const pureName = profile.name.trim();
         if (!pureName) {
             alert("이름을 입력해주세요.");
             return;
         }
-
-        const fullName = `${pureName} 상담사`; // 무조건 '상담사' 호칭 결합
-        localStorage.setItem("userName", fullName); // 시스템 전체 데이터(localStorage)에 저장
-        
+        const fullName = `${pureName} 상담사`; 
+        localStorage.setItem("userName", fullName);
         alert(`성함이 '${fullName}'로 성공적으로 수정되었습니다.`);
     };
 
@@ -124,16 +111,9 @@ const MyPage = () => {
                     {activeTab === 'profile' && (
                         <div className={styles.card}>
                             <h2 className={styles.cardTitle}>프로필 설정</h2>
-                            
                             <div className={styles.inputGroup}>
                                 <label><User size={14} /> 이름</label>
-                                {/* ✨ 이름 입력란 디자인: 오른쪽에 '상담사' 텍스트 고정 */}
-                                <div style={{ 
-                                    position: 'relative', 
-                                    display: 'flex', 
-                                    alignItems: 'center',
-                                    width: '100%' 
-                                }}>
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
                                     <input 
                                         value={profile.name} 
                                         onChange={(e) => setProfile({...profile, name: e.target.value})} 
@@ -149,23 +129,13 @@ const MyPage = () => {
                                             outline: 'none'
                                         }}
                                     />
-                                    <span style={{
-                                        position: 'absolute',
-                                        right: '16px',
-                                        fontSize: '16px',
-                                        fontWeight: 600,
-                                        color: '#94A3B8' // 상담사 문구는 고정된 회색 폰트
-                                    }}>
-                                        상담사
-                                    </span>
+                                    <span style={{ position: 'absolute', right: '16px', fontSize: '16px', fontWeight: 600, color: '#94A3B8' }}>상담사</span>
                                 </div>
                             </div>
-
                             <div className={styles.inputGroup}>
                                 <label><Mail size={14} /> 이메일</label>
                                 <input value={profile.email} disabled />
                             </div>
-
                             <div className={styles.inputGroup}>
                                 <label><Shield size={14} /> 소속/직급</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -173,7 +143,6 @@ const MyPage = () => {
                                     <input value={profile.rank} disabled style={{ flex: 1 }} />
                                 </div>
                             </div>
-
                             <button className={styles.saveBtn} onClick={handleSaveProfile}>
                                 <Save size={16} /> 변경 내용 저장
                             </button>
@@ -192,18 +161,27 @@ const MyPage = () => {
                             <div className={styles.memoList}>
                                 {displayMemos.length > 0 ? (
                                     displayMemos.map((memo, index) => (
-                                        <div key={`${memo.id}-${index}`} className={styles.memoItem} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div key={`${memo.id}-${index}`} className={styles.memoItem} style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            padding: '16px',
+                                            borderBottom: '1px solid #F3F4F6'
+                                        }}>
+                                            {/* ✨ 메모 내용(content)만 깔끔하게 표시 */}
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'center' }}>
-                                                    <span className={styles.memoDate}><Calendar size={12} /> {memo.date}</span>
-                                                    <span className={styles.memoCategory}>{memo.category}</span>
-                                                </div>
-                                                <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 700 }}>{memo.customer} 고객님</h4>
-                                                <p className={styles.memoContent}>{memo.content}</p>
+                                                <p className={styles.memoContent} style={{ 
+                                                    margin: 0, 
+                                                    fontSize: '15px', 
+                                                    lineHeight: '1.6', 
+                                                    color: '#334155' 
+                                                }}>
+                                                    {memo.content}
+                                                </p>
                                             </div>
                                             <button 
                                                 onClick={() => handleDeleteMemo(memo.id)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#94A3B8' }}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#94A3B8', marginLeft: '12px' }}
                                             >
                                                 <X size={18} />
                                             </button>
