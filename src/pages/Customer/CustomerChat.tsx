@@ -53,7 +53,7 @@ const CustomerChat = () => {
         return () => window.removeEventListener("storage", handleAgentMessage);
     }, []);
 
-    // ✨ 디테일: 메시지 추가 시 자동 스크롤
+    //  디테일: 메시지 추가 시 자동 스크롤
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -69,7 +69,7 @@ const CustomerChat = () => {
         const newMessage: ChatMessage = { id: messageId, sender: 'me', text: input, time: now };
         setMessages(prev => [...prev, newMessage]);
         
-        // 2. ✨ 상담사 화면으로 전달 (localStorage 이벤트 발생)
+        // 2.  상담사 화면으로 전달 (localStorage 이벤트 발생)
         localStorage.setItem("customerInquiry", JSON.stringify({
             id: messageId,
             message: input,
@@ -92,7 +92,7 @@ const CustomerChat = () => {
                     </div>
                 </header>
 
-                {/* ✨ ref를 추가하여 자동 스크롤 적용 */}
+                {/*  ref를 추가하여 자동 스크롤 적용 */}
                 <div className={styles.chatArea} ref={scrollRef}>
                     {messages.map((msg) => (
                         <div key={msg.id} className={msg.sender === 'me' ? styles.myMsgWrapper : styles.agentMsgWrapper}>

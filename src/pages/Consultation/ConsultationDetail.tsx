@@ -77,7 +77,7 @@ const ConsultationDetail: React.FC = () => {
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
 
-    // ✨ 사용하지 않는 setWaitingCount 제거하고 값만 가져옴
+    //  사용하지 않는 setWaitingCount 제거하고 값만 가져옴
     const [waitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count");
         return count ? Number(count) : 0;
