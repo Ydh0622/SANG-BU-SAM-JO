@@ -96,7 +96,7 @@ export const authApi = {
       return await apiStore.get<LoginResponse['user']>('/v1/users/me');
     }
     // 시연용 가짜 정보 반환
-    return { name: '유덕현(시연용)', email: 'test@example.com' };
+    return { name: '상담사(시연용)', email: 'test@example.com' };
   },
 };
 
