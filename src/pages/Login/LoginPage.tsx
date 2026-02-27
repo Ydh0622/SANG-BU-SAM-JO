@@ -24,7 +24,6 @@ const LoginPage: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
-  //  핸들러를 useCallback으로 감싸 렌더링 최적화 및 안정성 확보
   const handleLoginSuccess = useCallback((credentialResponse: CredentialResponse) => {
     if (isLoggingIn) return;
 
@@ -34,9 +33,9 @@ const LoginPage: React.FC = () => {
 
       try {
         setIsLoggingIn(true);
-        // 백엔드로 구글 JWT(idToken)를 전송하여 서버 전용 토큰을 받음
         const response = (await authApi.loginWithGoogle(idToken)) as BackendLoginResponse;
 
+        // authApi에서 Mock 데이터를 반환하거나 실제 데이터를 반환하는 것에 모두 대응
         const token = response.token || response.accessToken || response.data?.token || response.data?.accessToken;
         const userName = response.user?.name || response.data?.user?.name || "상담원";
 
@@ -45,6 +44,7 @@ const LoginPage: React.FC = () => {
         localStorage.setItem("token", token);
         localStorage.setItem("userName", userName);
         
+        // 시연을 위해 대시보드로 이동
         navigate("/dashboard", { replace: true });
       } catch (e: unknown) {
         console.error("로그인 실패 상세:", e);
@@ -73,7 +73,7 @@ const LoginPage: React.FC = () => {
         <div style={{ display: "flex", justifyContent: "center", width: "100%", margin: "24px 0" }}>
           {!isLoggingIn ? (
             <div style={{ transform: 'scale(1.05)' }}> 
-            <GoogleLogin
+              <GoogleLogin
                 onSuccess={handleLoginSuccess}
                 onError={() => console.error("로그인 실패")}
                 useOneTap={false} 
@@ -81,7 +81,9 @@ const LoginPage: React.FC = () => {
                 shape="pill"
                 width="320"      
                 text="signin_with" 
-                />
+                // 시연 시 계정 선택창이 뜨도록 유도 (브라우저 세션에 따라 다를 수 있음)
+                auto_select={false}
+              />
             </div>
           ) : (
             <div style={{ padding: '10px', color: '#E6007E', fontWeight: 600 }}>
