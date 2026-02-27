@@ -37,10 +37,9 @@ interface HistoryData {
 }
 
 /** * [MOCK DATA] 시연을 위한 가짜 데이터베이스
- * TODO: 나중에 실제 API 연동 시 이 MOCK_HISTORY_DB 전체를 삭제하세요.
+ * 나중에 실제 API 연동 시 이 MOCK_HISTORY_DB 전체를 삭제하세요.
  */
 const MOCK_HISTORY_DB: Record<string, HistoryData> = {
-    // 1. 김유플 고객님 (ID: 101)
     "101": {
         consultation_id: "101",
         started_at: "2026.02.27 11:20",
@@ -59,7 +58,6 @@ const MOCK_HISTORY_DB: Record<string, HistoryData> = {
             { id: 3, sender_type_code: "CUSTOMER", content: "네, 그걸로 변경해 주세요.", sent_at: "11:30" },
         ],
     },
-    // 2. 이엘지 고객님 (ID: 102)
     "102": {
         consultation_id: "102",
         started_at: "2026.02.27 10:10",
@@ -77,7 +75,6 @@ const MOCK_HISTORY_DB: Record<string, HistoryData> = {
             { id: 2, sender_type_code: "AGENT", content: "가족분들 휴대폰 회선 수에 따라 달라집니다. 확인해 드릴까요?", sent_at: "10:12" },
         ],
     },
-    // 3. 박Eureka 고객님 (ID: 103)
     "103": {
         consultation_id: "103",
         started_at: "2026.02.27 09:40",
@@ -146,7 +143,7 @@ const ConsultationHistory: React.FC = () => {
                 <div style={{ display: "flex", gap: "8px" }}>
                     <button 
                         type="button" 
-                        className={styles.primaryBtn} // 스타일이 정의되어 있다면 클래스 사용
+                        // 에러 방지를 위해 styles.primaryBtn 대신 직접 인라인 스타일 적용
                         style={{
                             display: 'flex',
                             alignItems: 'center',
