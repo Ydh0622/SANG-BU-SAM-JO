@@ -2,44 +2,21 @@ import axios from 'axios';
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 /**
- * [상부상조] 각 모듈별 베이스 URL 설정
- * 로컬 환경(.env) 및 Vercel 환경 변수에 등록된 주소를 읽어옵니다.
- * 등록되지 않았을 경우, 기본적으로 상대 경로(/api 등)를 사용합니다.
+ * [상부상조] 공통 Axios 설정
  */
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';    // Swagger 8081 대응
-const ADMIN_BASE = import.meta.env.VITE_ADMIN_BASE_URL || ''; // Swagger 8082 대응
-const FAST_BASE = import.meta.env.VITE_FAST_BASE_URL || '';   // Swagger 8083 대응
-
 const config: AxiosRequestConfig = {
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
   timeout: 10000, 
 };
 
-/**
- * 각 도메인별 스토어 생성
- * 이제 각 스토어는 독립적인 백엔드 서버 주소를 바라보게 됩니다.
- */
-// 1. 일반 API 서버 (로그인, 게시판 등)
-export const apiStore = axios.create({ 
-  baseURL: API_BASE ? `${API_BASE}/api` : '/api', 
-  ...config 
-});
-
-// 2. 관리자 서버
-export const adminStore = axios.create({ 
-  baseURL: ADMIN_BASE ? `${ADMIN_BASE}/admin` : '/admin', 
-  ...config 
-});
-
-// 3. Worker/FastAPI 서버
-export const fastApiStore = axios.create({ 
-  baseURL: FAST_BASE ? `${FAST_BASE}/fast` : '/fast', 
-  ...config 
-});
+// 각 도메인별 스토어 생성
+export const apiStore = axios.create({ baseURL: '/api', ...config });
+export const adminStore = axios.create({ baseURL: '/admin', ...config });
+export const fastApiStore = axios.create({ baseURL: '/fast', ...config });
 
 /**
- * 인터셉터 설정 함수
+ *  인터셉터 설정 함수
  * 모든 스토어에 공통적으로 토큰 삽입 및 에러 처리를 적용합니다.
  */
 const setInterceptors = (instance: AxiosInstance) => {
@@ -49,6 +26,7 @@ const setInterceptors = (instance: AxiosInstance) => {
       const token = localStorage.getItem('token'); 
       
       if (token && config.headers) {
+        // 백엔드에서 기대하는 Bearer 형식으로 토큰 주입
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;
@@ -59,9 +37,11 @@ const setInterceptors = (instance: AxiosInstance) => {
   // 2. 응답 인터셉터: 데이터 추출 및 공통 에러(401) 처리
   instance.interceptors.response.use(
     (response) => {
+      //  response.data를 반환하여 호출부에서 .data 없이 바로 접근하게 합니다.
       return response.data;
     },
     (error) => {
+      // 에러 상세 로그 (디버깅용)
       console.error(`[API Error] ${error.config?.url}:`, error.response || error.message);
 
       if (error.response?.status === 401) {
@@ -69,6 +49,7 @@ const setInterceptors = (instance: AxiosInstance) => {
         localStorage.removeItem('token');
         localStorage.removeItem('userName');
         
+        // 무한 루프 방지를 위해 현재 페이지가 로그인이 아닐 때만 리다이렉트
         if (window.location.pathname !== '/') {
           window.location.href = '/'; 
         }
