@@ -27,9 +27,7 @@ import { fetchConsultations } from "../../api/services/consultation";
 import type { ConsultationResponse } from "../../types/consultation"; 
 import * as styles from "./Style/Dashboard.css.ts";
 
-/** * ✨ [해결] 인터페이스 선언 대신 Type Alias를 사용하거나, 
- * 부모 타입을 그대로 사용하도록 수정하여 "no members" 에러를 방지합니다.
- */
+
 type LocalHistory = ConsultationResponse;
 
 const NOTICES = [
@@ -159,10 +157,8 @@ const Dashboard: React.FC = () => {
                 const apiData: ConsultationResponse[] = await fetchConsultations();
                 const localHistoryRaw = localStorage.getItem("consultationHistory");
                 
-                // ✨ LocalHistory 타입을 명시적으로 사용하여 any 방지
                 const localHistory: LocalHistory[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
                 
-                // ✨ 타입 안정성을 확보하며 병합
                 const combinedData: ConsultationResponse[] = [
                     ...localHistory, 
                     ...apiData

@@ -38,7 +38,7 @@ const MyPage = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'profile' | 'memo' | 'stats'>('profile');
 
-    /** ✨ 저장된 메모 불러오기 (목데이터 제거, 실제 저장된 데이터만 표시) */
+    /**  저장된 메모 불러오기 (목데이터 제거, 실제 저장된 데이터만 표시) */
     const [displayMemos, setDisplayMemos] = useState<MemoItem[]>(() => {
         const localData = localStorage.getItem("savedMemos");
         return localData ? JSON.parse(localData) : [];
@@ -168,7 +168,7 @@ const MyPage = () => {
                                             padding: '16px',
                                             borderBottom: '1px solid #F3F4F6'
                                         }}>
-                                            {/* ✨ 메모 내용(content)만 깔끔하게 표시 */}
+                                            {/*  메모 내용(content)만 깔끔하게 표시 */}
                                             <div style={{ flex: 1 }}>
                                                 <p className={styles.memoContent} style={{ 
                                                     margin: 0, 

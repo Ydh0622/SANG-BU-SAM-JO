@@ -23,7 +23,7 @@ const CustomerService = () => {
                     clearInterval(checkTimer);
                     
                     setTimeout(() => {
-                        // ✨ 이동 전 매칭 상태값은 유지하되, 페이지 이동
+                        //  이동 전 매칭 상태값은 유지하되, 페이지 이동
                         navigate("/customer/chat"); 
                     }, 1500);
                 }
@@ -38,7 +38,7 @@ const CustomerService = () => {
         
         setIsConnecting(true);
 
-        // ✨ 디테일: 새로운 상담을 위해 기존 세션 데이터 청소
+        // 디테일: 새로운 상담을 위해 기존 세션 데이터 청소
         ["customerInquiry", "agentMessage", "lastInquiry"].forEach(k => localStorage.removeItem(k));
         
         // 2. 상담 데이터 구조화 (id와 time 추가)
@@ -49,7 +49,7 @@ const CustomerService = () => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
-        // 3. ✨ 양방향 연동을 위한 데이터 저장
+        // 3. 양방향 연동을 위한 데이터 저장
         // customerInquiry: 상담사 대시보드에 알림을 띄움
         localStorage.setItem("customerInquiry", JSON.stringify(inquiryData));
         // lastInquiry: 채팅방 진입 시 첫 메시지로 사용됨

@@ -20,7 +20,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as styles from "./Style/Search.css.ts";
 
-/** ✅ 검색 결과 인터페이스 */
+/** 검색 결과 인터페이스 */
 interface SearchResult {
     id: string;
     date: string;
@@ -33,7 +33,7 @@ interface SearchResult {
     process_status: "COMPLETED" | "PENDING" | "TRANSFERRED";
 }
 
-/** ✅ 로컬 스토리지에서 넘어오는 데이터 타입 정의 (any 제거용) */
+/** 로컬 스토리지에서 넘어오는 데이터 타입 정의 (any 제거용) */
 interface LocalHistoryItem {
     consultation_id: string;
     customer_name: string;
@@ -74,7 +74,7 @@ const ConsultationSearch: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeFilter, setActiveFilter] = useState<string>("ALL");
     
-    /** * ✨ [수정] useState 지연 초기화 (Lazy Initialization)
+    /** *  useState 지연 초기화 (Lazy Initialization)
      * useEffect 대신 이 방식을 쓰면 첫 렌더링 시점에 로컬 데이터를 즉시 합치므로 
      * Cascading Render 경고가 발생하지 않고 성능상 유리합니다.
      */
@@ -98,7 +98,7 @@ const ConsultationSearch: React.FC = () => {
         return [...convertedLocal, ...MOCK_RESULTS];
     });
 
-    /** ✅ 필터링 로직 */
+    /**  필터링 로직 */
     const filteredResults = useMemo(() => {
         return allResults.filter((res) => {
             const matchSearch =

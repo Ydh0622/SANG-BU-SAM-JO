@@ -1,52 +1,67 @@
 import axios from 'axios';
-import type { AxiosInstance, AxiosRequestConfig } from 'axios';
+import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 /**
- * [상부상조] Axios 클라이언트 설정
- * 8081: 상담 및 AI 서비스 / 8082: 관리자 서비스 / 8000: FastAPI 검색
+ * [상부상조] 공통 Axios 설정
  */
-
 const config: AxiosRequestConfig = {
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
-  timeout: 10000, // AI 응답(GPT)은 시간이 걸릴 수 있어 10초로 늘리는 것을 추천해요.
+  timeout: 10000, 
 };
 
-// 인스턴스 생성 (포트는 명세서/백엔드 상황에 맞게 조절하세요!)
-export const apiStore = axios.create({ baseURL: 'http://localhost:8081', ...config });
-export const adminStore = axios.create({ baseURL: 'http://localhost:8082', ...config });
-export const fastApiStore = axios.create({ baseURL: 'http://localhost:8000', ...config }); // ✨ FastAPI 추가
+// 각 도메인별 스토어 생성
+export const apiStore = axios.create({ baseURL: '/api', ...config });
+export const adminStore = axios.create({ baseURL: '/admin', ...config });
+export const fastApiStore = axios.create({ baseURL: '/fast', ...config });
 
+/**
+ *  인터셉터 설정 함수
+ * 모든 스토어에 공통적으로 토큰 삽입 및 에러 처리를 적용합니다.
+ */
 const setInterceptors = (instance: AxiosInstance) => {
-  // 1. 요청 인터셉터: Bearer 토큰 자동 부착
-  instance.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token'); 
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  });
+  // 1. 요청 인터셉터: 모든 요청에 Bearer 토큰 자동 부착
+  instance.interceptors.request.use(
+    (config: InternalAxiosRequestConfig) => {
+      const token = localStorage.getItem('token'); 
+      
+      if (token && config.headers) {
+        // 백엔드에서 기대하는 Bearer 형식으로 토큰 주입
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
-  // 2. 응답 인터셉터: 데이터 추출 및 401 인증 에러 처리
+  // 2. 응답 인터셉터: 데이터 추출 및 공통 에러(401) 처리
   instance.interceptors.response.use(
-    (res) => res.data, 
-    (err) => {
-      if (err.response?.status === 401) {
+    (response) => {
+      //  response.data를 반환하여 호출부에서 .data 없이 바로 접근하게 합니다.
+      return response.data;
+    },
+    (error) => {
+      // 에러 상세 로그 (디버깅용)
+      console.error(`[API Error] ${error.config?.url}:`, error.response || error.message);
+
+      if (error.response?.status === 401) {
+        console.warn("인증이 만료되었습니다. 로그인 페이지로 이동합니다.");
         localStorage.removeItem('token');
         localStorage.removeItem('userName');
-        // 중복 팝업 방지를 위해 alert 없이 바로 이동하거나 
-        // 팝업이 꼭 필요하면 한 번만 뜨게 조절하는 게 좋습니다.
-        window.location.href = '/'; 
+        
+        // 무한 루프 방지를 위해 현재 페이지가 로그인이 아닐 때만 리다이렉트
+        if (window.location.pathname !== '/') {
+          window.location.href = '/'; 
+        }
       }
-      return Promise.reject(err);
+      return Promise.reject(error);
     }
   );
 };
 
-// 모든 서버 인스턴스에 적용
+// 모든 인스턴스에 인터셉터 적용
 setInterceptors(apiStore);
 setInterceptors(adminStore);
 setInterceptors(fastApiStore);
 
-// 기본값으로 apiStore 내보내기
 export default apiStore;

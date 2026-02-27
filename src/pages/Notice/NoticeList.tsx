@@ -50,7 +50,7 @@ const NoticeList = () => {
         <div className={styles.container}>
             <div className={styles.contentWrapper}>
                 
-                {/* ✨ 대시보드로 돌아가는 뒤로가기 버튼 (피드백 16번 반영) */}
+                {/*  대시보드로 돌아가는 뒤로가기 버튼 (피드백 16번 반영) */}
                 <button className={styles.backButton} onClick={() => navigate("/dashboard")}>
                     <ChevronLeft size={20} />
                     대시보드로 돌아가기
