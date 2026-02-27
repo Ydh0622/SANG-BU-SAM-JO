@@ -22,33 +22,42 @@ export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
         return await adminStore.get('/api/v1/consultations');
     }
 
-    // Vercel 시연용 Mock 데이터
+    // Vercel 시연용 Mock 데이터 (Dashboard.tsx의 렌더링 필드명에 맞춤)
     console.warn("시연용 모드: 가짜 상담 목록을 반환합니다.");
     
     const mockData = [
         {
-            customerName: "김유플",
-            status: "IN_PROGRESS",
+            consultation_id: 101,
+            customer_name: "김유플",
+            status: "DONE", // Dashboard에서 '처리완료'로 표시됨
+            priority: "HIGH",
             category: "요금제 문의",
+            issue_detail: "5G 다이렉트",
+            content_preview: "5G 다이렉트 요금제 변경하고 싶어요.",
+            channel_type: "CHAT",
             createdAt: new Date().toISOString(),
-            content: "5G 다이렉트 요금제 변경하고 싶어요.",
-            phoneNumber: "010-1234-5678",
         },
         {
-            customerName: "이엘지",
-            status: "WAITING",
+            consultation_id: 102,
+            customer_name: "이엘지",
+            status: "PROGRESS", // Dashboard에서 '상담중'으로 표시됨
+            priority: "MEDIUM",
             category: "기기 결합",
+            issue_detail: "가족 무한 결합",
+            content_preview: "인터넷이랑 결합하면 얼마나 할인되나요?",
+            channel_type: "CALL",
             createdAt: new Date().toISOString(),
-            content: "인터넷이랑 결합하면 얼마나 할인되나요?",
-            phoneNumber: "010-9876-5432",
         },
         {
-            customerName: "박Eureka",
-            status: "COMPLETED",
+            consultation_id: 103,
+            customer_name: "박Eureka",
+            status: "PROGRESS",
+            priority: "LOW",
             category: "분실 신고",
+            issue_detail: "정지 요청",
+            content_preview: "핸드폰을 잃어버렸어요. 정지 부탁드립니다.",
+            channel_type: "CHAT",
             createdAt: new Date().toISOString(),
-            content: "핸드폰을 잃어버렸어요. 정지 부탁드립니다.",
-            phoneNumber: "010-1111-2222",
         }
     ];
 
@@ -72,14 +81,17 @@ export const acceptConsultation = (consultationId: string | number) => {
 export const getConsultationDetail = async (consultId: string): Promise<ConsultationResponse> => {
     if (isLocal) return await adminStore.get(`/api/v1/consultations/${consultId}`);
 
-    // 시연용 상세 데이터
+    // 시연용 상세 데이터 (상세 페이지에서도 snake_case를 쓸 확률이 높음)
     const detailData = {
-        customerName: "김유플",
-        status: "IN_PROGRESS",
+        consultation_id: Number(consultId),
+        customer_name: "김유플",
+        status: "PROGRESS",
+        priority: "HIGH",
         category: "요금제 문의",
+        issue_detail: "5G 다이렉트",
+        content_preview: "5G 다이렉트 요금제 변경하고 싶어요. 지금 쓰고 있는 요금제보다 저렴한 게 있을까요?",
+        channel_type: "CHAT",
         createdAt: new Date().toISOString(),
-        content: "5G 다이렉트 요금제 변경하고 싶어요. 지금 쓰고 있는 요금제보다 저렴한 게 있을까요?",
-        phoneNumber: "010-1234-5678",
     };
 
     return detailData as unknown as ConsultationResponse;

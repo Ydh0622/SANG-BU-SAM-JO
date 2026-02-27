@@ -64,7 +64,7 @@ export const authApi = {
     const mockResponse: LoginResponse = {
       accessToken: 'mentoring-sample-token-12345',
       user: {
-        name: '유덕현(시연용)',
+        name: '고길동(시연용)',
         email: 'test@example.com'
       }
     };
