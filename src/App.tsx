@@ -5,7 +5,6 @@ import ConsultationDetail from "./pages/Consultation/ConsultationDetail";
 import ConsultationSearch from "./pages/Search/ConsultationSearch";
 import ConsultationHistory from "./pages/History/ConsultationHistory";
 import NoticeList from "./pages/Notice/NoticeList"; 
-import NoticeDetail from "./pages/Notice/NoticeDetail"; 
 import CustomerService from "./pages/Customer/CustomerService"; 
 import CustomerApply from "./pages/Customer/CustomerApply"; 
 import CustomerChat from "./pages/Customer/CustomerChat"; 
@@ -34,7 +33,6 @@ function App() {
 
                     {/* 6. 공지사항: 리스트 및 상세 페이지 */}
                     <Route path="/notice" element={<NoticeList />} />
-                    <Route path="/notice/:id" element={<NoticeDetail />} />
 
                     {/* 7. 알림 센터: 상담사 개인 업무 알림 내역 히스토리 */}
                     <Route path="/notifications" element={<NotificationPage />} />

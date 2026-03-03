@@ -1,8 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Megaphone } from "lucide-react";
+import { ArrowLeft, Megaphone } from "lucide-react"; 
 import * as styles from "./Style/NoticeList.css.ts";
 
-// 공지사항 데이터 타입
 interface Notice {
     id: number;
     category: '공지' | '업데이트' | '점검';
@@ -50,22 +49,53 @@ const NoticeList = () => {
         <div className={styles.container}>
             <div className={styles.contentWrapper}>
                 
-                {/*  대시보드로 돌아가는 뒤로가기 버튼 (피드백 16번 반영) */}
-                <button className={styles.backButton} onClick={() => navigate("/dashboard")}>
-                    <ChevronLeft size={20} />
-                    대시보드로 돌아가기
-                </button>
-
-                <div className={styles.titleSection}>
-                    <h1 className={styles.mainTitle}>
-                        <Megaphone size={28} style={{ marginRight: '10px', verticalAlign: 'bottom', color: '#E6007E' }} />
+                {/* 헤더 섹션: image_b96884.png의 뒤로가기 버튼 스타일 적용 */}
+                <header style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: "12px", 
+                    marginBottom: "32px" 
+                }}>
+                    <button 
+                        type="button" 
+                        onClick={() => navigate("/dashboard")} 
+                        style={{ 
+                            background: '#FFFFFF', 
+                            border: '1px solid #EEEEEE', 
+                            borderRadius: '12px', // 이미지와 같은 둥근 사각형
+                            cursor: 'pointer', 
+                            width: '40px',
+                            height: '40px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                            padding: 0
+                        }}
+                    >
+                        <ArrowLeft size={20} color="#1A1A1A" />
+                    </button>
+                    
+                    <h1 style={{ 
+                        fontSize: "22px", 
+                        fontWeight: 800, 
+                        color: "#1A1A1A", 
+                        margin: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                    }}>
+                        <Megaphone size={22} color="#E6007E" />
                         공지사항
                     </h1>
+                </header>
+
+                <div className={styles.titleSection}>
                     <p className={styles.subTitle}>서비스의 주요 업데이트와 안내 사항을 확인하세요.</p>
                 </div>
 
                 <div className={styles.listCard}>
-                    {/* 테이블 헤더 역할을 하는 상단 바 */}
+                    {/* 테이블 헤더 */}
                     <div style={{  
                         display: 'grid', 
                         gridTemplateColumns: '100px 1fr 120px', 
@@ -77,7 +107,7 @@ const NoticeList = () => {
                     }}>
                         <span style={{ textAlign: 'center' }}>구분</span>
                         <span style={{ paddingLeft: '20px' }}>제목</span>
-                        <span style={{ textAlign: 'right' }}>작성일</span>
+                        <span style={{ textAlign: 'right', paddingRight: '10px' }}>작성일</span>
                     </div>
 
                     {/* 리스트 아이템 */}
@@ -86,6 +116,7 @@ const NoticeList = () => {
                             key={notice.id} 
                             className={styles.listItem}
                             onClick={() => navigate(`/notice/${notice.id}`)}
+                            style={{ cursor: 'pointer' }}
                         >
                             <div style={{ textAlign: 'center' }}>
                                 <span className={styles.categoryTag} style={{

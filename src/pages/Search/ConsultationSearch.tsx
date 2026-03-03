@@ -16,7 +16,7 @@ import {
     UserCheck,
 } from "lucide-react";
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as styles from "./Style/Search.css.ts";
 
@@ -33,7 +33,7 @@ interface SearchResult {
     process_status: "COMPLETED" | "PENDING" | "TRANSFERRED";
 }
 
-/** 로컬 스토리지에서 넘어오는 데이터 타입 정의 (any 제거용) */
+/** 로컬 스토리지에서 넘어오는 데이터 타입 정의 */
 interface LocalHistoryItem {
     consultation_id: string;
     customer_name: string;
@@ -44,40 +44,16 @@ interface LocalHistoryItem {
     created_at?: string;
 }
 
-const MOCK_RESULTS: SearchResult[] = [
-    // {
-    //     id: "102938",
-    //     date: "2026.02.11",
-    //     customer: "김철수",
-    //     category: "요금제",
-    //     summary: "5G 가족결합 할인 누락 건 소급 적용 안내",
-    //     agent: "나상담",
-    //     is_mine: true,
-    //     is_repeat: true,
-    //     process_status: "COMPLETED",
-    // },
-    // {
-    //     id: "102939",
-    //     date: "2026.02.10",
-    //     customer: "고길동",
-    //     category: "기기변경",
-    //     summary: "아이폰 17 프로 사전예약 및 보상판매 문의",
-    //     agent: "나상담",
-    //     is_mine: true,
-    //     is_repeat: false,
-    //     process_status: "PENDING",
-    // },
-];
+const MOCK_RESULTS: SearchResult[] = [];
 
 const ConsultationSearch: React.FC = () => {
     const navigate = useNavigate();
+    const dateInputRef = useRef<HTMLInputElement>(null);
+    
     const [searchTerm, setSearchTerm] = useState("");
     const [activeFilter, setActiveFilter] = useState<string>("ALL");
+    const [searchDate, setSearchDate] = useState(""); 
     
-    /** *  useState 지연 초기화 (Lazy Initialization)
-     * useEffect 대신 이 방식을 쓰면 첫 렌더링 시점에 로컬 데이터를 즉시 합치므로 
-     * Cascading Render 경고가 발생하지 않고 성능상 유리합니다.
-     */
     const [allResults] = useState<SearchResult[]>(() => {
         const localHistoryRaw = localStorage.getItem("consultationHistory");
         const localHistory: LocalHistoryItem[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
@@ -98,7 +74,6 @@ const ConsultationSearch: React.FC = () => {
         return [...convertedLocal, ...MOCK_RESULTS];
     });
 
-    /**  필터링 로직 */
     const filteredResults = useMemo(() => {
         return allResults.filter((res) => {
             const matchSearch =
@@ -106,14 +81,28 @@ const ConsultationSearch: React.FC = () => {
                 res.id.includes(searchTerm) || 
                 res.summary.includes(searchTerm);
 
-            if (activeFilter === "MINE") return matchSearch && res.is_mine;
-            if (activeFilter === "REPEAT") return matchSearch && res.is_repeat;
-            if (activeFilter === "PENDING")
-                return matchSearch && res.process_status === "PENDING";
+            const matchDate = searchDate ? res.date.includes(searchDate.replace(/-/g, ".")) : true;
 
-            return matchSearch;
+            if (activeFilter === "MINE") return matchSearch && matchDate && res.is_mine;
+            if (activeFilter === "REPEAT") return matchSearch && matchDate && res.is_repeat;
+            if (activeFilter === "PENDING")
+                return matchSearch && matchDate && res.process_status === "PENDING";
+
+            return matchSearch && matchDate;
         });
-    }, [searchTerm, activeFilter, allResults]);
+    }, [searchTerm, activeFilter, allResults, searchDate]);
+
+    // [수정] catch 문에서 (error) 대신 ()를 사용하여 'never used' 경고 해결
+    const handleCalendarClick = () => {
+        if (dateInputRef.current) {
+            try {
+                dateInputRef.current.showPicker();
+            } catch {
+                // error 변수를 선언하지 않음으로써 경고 제거
+                dateInputRef.current.focus();
+            }
+        }
+    };
 
     const handleRowClick = (id: string) => {
         if (id.startsWith("LOG_")) {
@@ -180,15 +169,24 @@ const ConsultationSearch: React.FC = () => {
                                 placeholder="검색어 입력..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{ color: "#1A1A1A", fontWeight: 600 }}
                             />
                         </div>
                     </div>
 
                     <div className={styles.inputGroup}>
                         <label htmlFor="search-date">조회 기간</label>
-                        <div className={styles.inputWrapper}>
+                        <div className={styles.inputWrapper} onClick={handleCalendarClick} style={{ cursor: 'pointer' }}>
                             <Calendar size={16} color="#888" />
-                            <input id="search-date" type="date" className={styles.input} />
+                            <input 
+                                ref={dateInputRef}
+                                id="search-date" 
+                                type="date" 
+                                className={styles.input} 
+                                value={searchDate}
+                                onChange={(e) => setSearchDate(e.target.value)}
+                                style={{ color: "#1A1A1A", fontWeight: 800, fontFamily: "inherit", cursor: 'pointer' }} 
+                            />
                         </div>
                     </div>
 
@@ -198,6 +196,7 @@ const ConsultationSearch: React.FC = () => {
                             className={styles.resetBtn}
                             onClick={() => {
                                 setSearchTerm("");
+                                setSearchDate("");
                                 setActiveFilter("ALL");
                             }}
                         >
@@ -231,15 +230,11 @@ const ConsultationSearch: React.FC = () => {
                         </thead>
                         <tbody>
                             {filteredResults.map((res) => (
-                                <tr
-                                    key={res.id}
-                                    className={styles.tableRow}
-                                    onClick={() => handleRowClick(res.id)}
-                                >
+                                <tr key={res.id} className={styles.tableRow} onClick={() => handleRowClick(res.id)}>
                                     <td style={{ color: "#888", fontSize: "13px" }}>#{res.id}</td>
                                     <td>
                                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                            <span style={{ fontWeight: 800, fontSize: "15px" }}>{res.customer}</span>
+                                            <span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span>
                                             {res.is_repeat && (
                                                 <span style={{ padding: "2px 8px", fontSize: "11px", backgroundColor: "#FFF0F6", color: "#E6007E", borderRadius: "4px", border: "1px solid #E6007E", fontWeight: 800 }}>
                                                     재상담
@@ -281,13 +276,6 @@ const ConsultationSearch: React.FC = () => {
                                     <td><ChevronRight size={18} color="#CCC" /></td>
                                 </tr>
                             ))}
-                            {filteredResults.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                                        검색 결과가 없습니다.
-                                    </td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
                 </div>

@@ -77,7 +77,6 @@ const ConsultationDetail: React.FC = () => {
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
 
-    //  사용하지 않는 setWaitingCount 제거하고 값만 가져옴
     const [waitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count");
         return count ? Number(count) : 0;
@@ -145,61 +144,91 @@ const ConsultationDetail: React.FC = () => {
                     contact_info: customerData?.phone || data.contact_info,
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
-
+            } catch (err) {
+                console.warn("서버 데이터 로드 실패, 로컬 스토리지 확인:", err);
+                const localHistoryRaw = localStorage.getItem("consultationHistory");
+                
+                if (localHistoryRaw) {
+                    const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
+                    const fallbackData = localHistory.find(
+                        (item: ConsultationResponse) => String(item.consultation_id) === String(customerId)
+                    );
+                    
+                    if (fallbackData) {
+                        setCustomerInfo(fallbackData as ExtendedConsultationResponse);
+                    } else {
+                        navigate("/dashboard");
+                    }
+                } else {
+                    navigate("/dashboard");
+                }
+            } finally {
                 const lastInquiry = localStorage.getItem("lastInquiry");
                 if (lastInquiry) {
                     const parsed = JSON.parse(lastInquiry);
                     setMessages([{ id: 1, sender: "customer", text: parsed.message, time: parsed.time || "14:20" }]);
                     fetchSimilarFaqs(parsed.message);
                 }
-            } catch (err) { console.error(err); } 
-            finally { setIsLoading(false); }
+                setIsLoading(false);
+            }
         };
         loadDetail();
-    }, [customerId, fetchSimilarFaqs]);
+    }, [customerId, fetchSimilarFaqs, navigate]);
 
     const handleSend = useCallback(async () => {
         if (!inputValue.trim() || !customerId) return;
+        
         const textToSend = inputValue;
+        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const messageId = Date.now();
+        
         setInputValue("");
+
+        const newMessage: Message = { id: messageId, sender: "agent", text: textToSend, time: now };
+        setMessages((prev) => [...prev, newMessage]);
+
+        localStorage.setItem("agentMessage", JSON.stringify({
+            id: messageId,
+            text: textToSend,
+            time: now
+        }));
+        
         try {
             await sendConsultationMessage(customerId, textToSend);
-            const newMessage: Message = {
-                id: Date.now(),
-                sender: "agent",
-                text: textToSend,
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            };
-            setMessages((prev) => [...prev, newMessage]);
-            
             setIsTyping(true);
             setTimeout(() => setIsTyping(false), 2000);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.warn("메시지 서버 전송 실패 (로컬 유지):", err);
+        }
     }, [inputValue, customerId]);
 
-    /**  [상담 종료] 대시보드 '오늘 완료' 숫자에 즉시 반영 */
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            await completeConsultation(customerId, record); 
+            try {
+                await completeConsultation(customerId, record); 
+            } catch {
+                console.warn("서버 결과 저장 실패, 로컬 히스토리만 업데이트합니다.");
+            }
 
-            const existingHistory = JSON.parse(localStorage.getItem("consultationHistory") || "[]");
-            const newDoneEntry = {
-                consultation_id: `LOG_${Date.now()}`,
+            const existingHistoryRaw = localStorage.getItem("consultationHistory");
+            const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
+            
+            // [해결] consultation_id(number), priority("MID"), contact_info(필수) 추가
+            const newDoneEntry: ConsultationResponse = {
+                consultation_id: Date.now(), 
                 customer_name: customerInfo?.customer_name || "알 수 없는 고객",
+                contact_info: customerInfo?.contact_info || "010-0000-0000",
                 category: "채팅상담", 
                 issue_detail: record.issue_type_code === "BILL_INQUIRY" ? "요금/결합 할인" : "일반 문의",
                 content_preview: record.summary_text,
-                status: "DONE", // ✨ 대시보드 filter 기준
-                priority: "NORMAL",
+                status: "DONE",
+                priority: "MID", 
                 channel_type: "CHAT",
                 created_at: new Date().toISOString()
             };
 
-            // 1. 대시보드가 읽는 리스트에 추가
             localStorage.setItem("consultationHistory", JSON.stringify([newDoneEntry, ...existingHistory]));
-
-            // 2. 상담 종료 후 임시 데이터 삭제
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer"].forEach(k => localStorage.removeItem(k));
             
             alert("상담 내역이 저장되었습니다.");
@@ -321,7 +350,7 @@ const ConsultationDetail: React.FC = () => {
                         <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 유사 FAQ 추천</h3>
                         <div className={styles.faqWrapper}>
                             {similarFaqs.map((faq) => (
-                                <div key={faq.faq_id} className={faq.similarity_score > 0 ? styles.faqItem : styles.faqItem}>
+                                <div key={faq.faq_id} className={styles.faqItem}>
                                     <p style={{ fontSize: '13px', fontWeight: 600 }}>Q. {faq.question}</p>
                                     <button className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
                                 </div>
