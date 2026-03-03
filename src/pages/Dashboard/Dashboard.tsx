@@ -407,7 +407,7 @@ const Dashboard: React.FC = () => {
                 </div>
             </main>
 
-            {/** [추가] 공지사항 모달 UI */}
+            {/**  공지사항 모달 UI */}
             {selectedNotice && (
                 <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
                     <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
@@ -421,7 +421,6 @@ const Dashboard: React.FC = () => {
                         <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
                             {selectedNotice.content}
                         </div>
-                        <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '32px' }} onClick={() => setSelectedNotice(null)}>내용 확인</button>
                     </div>
                 </div>
             )}
