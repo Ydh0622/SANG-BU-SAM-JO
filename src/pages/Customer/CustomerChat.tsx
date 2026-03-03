@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, Home } from 'lucide-react'; // Home 아이콘 추가
 import { useNavigate } from 'react-router-dom';
 import * as styles from "./Style/CustomerChat.css.ts";
 
@@ -36,7 +36,6 @@ const CustomerChat = () => {
                 const data = JSON.parse(e.newValue);
                 
                 setMessages(prev => {
-                    // 중복 수신 방지
                     if (prev.some(msg => msg.id === data.id)) return prev;
                     
                     return [...prev, {
@@ -53,7 +52,6 @@ const CustomerChat = () => {
         return () => window.removeEventListener("storage", handleAgentMessage);
     }, []);
 
-    //  디테일: 메시지 추가 시 자동 스크롤
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -65,11 +63,9 @@ const CustomerChat = () => {
         const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const messageId = Date.now();
         
-        // 1. 내 화면 업데이트
         const newMessage: ChatMessage = { id: messageId, sender: 'me', text: input, time: now };
         setMessages(prev => [...prev, newMessage]);
         
-        // 2.  상담사 화면으로 전달 (localStorage 이벤트 발생)
         localStorage.setItem("customerInquiry", JSON.stringify({
             id: messageId,
             message: input,
@@ -83,16 +79,32 @@ const CustomerChat = () => {
         <div className={styles.container}>
             <div className={styles.phoneFrame}>
                 <header className={styles.chatHeader}>
-                    <button onClick={() => navigate('/customer')} className={styles.backBtn}>
+                    {/* 왼쪽: 뒤로가기 버튼 */}
+                    <button onClick={() => navigate(-1)} className={styles.backBtn}>
                         <ArrowLeft size={24} />
                     </button>
-                    <div>
-                        <div style={{ fontSize: '13px', color: '#E6007E', fontWeight: 700 }}>실시간 매칭 완료</div>
-                        <div style={{ fontSize: '17px', fontWeight: 800 }}>U+ 전문 상담사</div>
+
+                    {/* 중앙: 상담사 정보 */}
+                    <div style={{ flex: 1, marginLeft: '12px' }}>
+                        <div style={{ fontSize: '12px', color: '#E6007E', fontWeight: 700 }}>실시간 매칭 완료</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800 }}>U+ 전문 상담사</div>
                     </div>
+
+                    {/* [추가] 오른쪽: 홈(Apply) 버튼 */}
+                    <button 
+                        onClick={() => navigate('/customer/apply')} 
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            padding: '8px',
+                            color: '#333'
+                        }}
+                    >
+                        <Home size={24} />
+                    </button>
                 </header>
 
-                {/*  ref를 추가하여 자동 스크롤 적용 */}
                 <div className={styles.chatArea} ref={scrollRef}>
                     {messages.map((msg) => (
                         <div key={msg.id} className={msg.sender === 'me' ? styles.myMsgWrapper : styles.agentMsgWrapper}>

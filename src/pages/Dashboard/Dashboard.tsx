@@ -30,10 +30,26 @@ import * as styles from "./Style/Dashboard.css.ts";
 
 type LocalHistory = ConsultationResponse;
 
+/** [수정] 모달에서 보여줄 상세 내용을 포함하도록 데이터 구조 변경 */
 const NOTICES = [
-    { id: 1, title: "[점검] AI 상담 요약 엔진 정기 점검 안내", date: "02.21" },
-    { id: 2, title: "상담사 메모 저장 및 수정 기능 업데이트", date: "02.19" },
-    { id: 3, title: "신규 상담사 업무 가이드북 최신판 배포", date: "02.15" },
+    { 
+        id: 1, 
+        title: "[점검] AI 상담 요약 엔진 정기 점검 안내", 
+        date: "02.21",
+        content: "안녕하세요. 시스템 안정화를 위해 AI 엔진 정기 점검이 진행됩니다. 점검 중에는 요약 기능이 일시적으로 지연될 수 있습니다.\n\n- 일시: 2026.02.25 02:00 ~ 04:00"
+    },
+    { 
+        id: 2, 
+        title: "상담사 메모 저장 및 수정 기능 업데이트", 
+        date: "02.19",
+        content: "상담 중 작성한 메모를 즉시 저장하고, 나중에 마이페이지에서 수정할 수 있는 기능이 추가되었습니다. 업무 효율을 높여보세요!"
+    },
+    { 
+        id: 3, 
+        title: "신규 상담사 업무 가이드북 최신판 배포", 
+        date: "02.15", 
+        content: "2026년 상반기 통합 업무 가이드북 v2.1이 배포되었습니다. 지식 베이스(KB) 메뉴에서 다운로드 가능합니다."
+    },
 ];
 
 const Dashboard: React.FC = () => {
@@ -42,40 +58,38 @@ const Dashboard: React.FC = () => {
         toggleWorkStatus,
         assignedCustomer,
         setAssignedCustomer,
-    } = useConsultation();
+    } = useConsultation(); 
     
     const navigate = useNavigate();
     const popoverRef = useRef<HTMLDivElement>(null);
     
-    const [adminName] = useState(() => localStorage.getItem("userName") || "상담원");
+    const [adminName] = useState(() => localStorage.getItem("userName") || "상담원"); 
     const [now, setNow] = useState(new Date());
     const [showGuide, setShowGuide] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // 실시간 대기열 상세 모달 상태
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
-    /** 보안 및 접근 제어 로직 */
+    /** [추가] 선택된 공지사항 상태 관리 */
+    const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
+
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (!token) {
             alert("보안을 위해 로그인이 필요합니다.");
             navigate("/", { replace: true });
         }
-    }, [navigate]);
+    }, [navigate]); 
 
-    /** [실시간 대기열] 로컬스토리지 기반 관리 */
-    const [realtimeWaitingCount, setRealtimeWaitingCount] = useLocalStorage<number>("realtime_waiting_count", 0);
+    const [realtimeWaitingCount, setRealtimeWaitingCount] = useLocalStorage<number>("realtime_waiting_count", 0); 
 
-    // 대기열 리스트 실시간 데이터 추출
     const waitingList = useMemo<CustomerInfo[]>(() => {
         const list = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
         return list;
-    }, [realtimeWaitingCount]);
+    }, [realtimeWaitingCount, isQueueModalOpen]); 
 
-    /** 메모 및 알림 저장 */
     const [memo, setMemo] = useLocalStorage<string>("dashboard_memo", "");
     const [notifications, setNotifications] = useLocalStorage("dashboard_notifications", [
         { id: 1, title: "긴급장애: 서울 IPTV 수신 불량", type: "urgent", time: "방금 전", isRead: false },
@@ -83,14 +97,13 @@ const Dashboard: React.FC = () => {
         { id: 3, title: "오전 상담 실적 통계가 집계되었습니다.", type: "report", time: "4시간 전", isRead: true },
     ]);
 
-    /** 오늘 완료된 상담 건수 자동 계산 */
     const completedCount = useMemo(() => {
         return activities.filter(activity => activity.status === 'DONE').length;
-    }, [activities]);
+    }, [activities]); 
 
-    /** 대기열에서 다음 고객을 꺼내 배정하는 함수 */
-    const assignNextCustomer = useCallback(() => {
-        if (workStatus !== "AVAILABLE" || assignedCustomer) return;
+    const assignNextCustomer = useCallback((currentStatus?: string) => {
+        const checkStatus = currentStatus || workStatus;
+        if (checkStatus !== "AVAILABLE" || assignedCustomer) return;
 
         const currentWaiting: CustomerInfo[] = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
         
@@ -106,9 +119,27 @@ const Dashboard: React.FC = () => {
         } else {
             setAssignedCustomer(null);
         }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, setRealtimeWaitingCount]);
+    }, [workStatus, assignedCustomer, setAssignedCustomer, setRealtimeWaitingCount]); 
 
-    /** 상담 수락 핸들러 */
+    const handleToggleStatus = useCallback(() => {
+        toggleWorkStatus();
+        if (workStatus !== "AVAILABLE") {
+            setTimeout(() => {
+                assignNextCustomer("AVAILABLE");
+            }, 100);
+        }
+    }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
+
+    const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
+        if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
+            const currentWaiting: CustomerInfo[] = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
+            const updatedWaiting = currentWaiting.filter(c => c.id !== customerId);
+            
+            localStorage.setItem("waitingCustomers", JSON.stringify(updatedWaiting));
+            setRealtimeWaitingCount(updatedWaiting.length);
+        }
+    }, [setRealtimeWaitingCount]);
+
     const handleAcceptConsultation = useCallback(
         (customer: CustomerInfo) => {
             localStorage.setItem("isMatched", "true");
@@ -122,20 +153,17 @@ const Dashboard: React.FC = () => {
             navigate(`/consultation/${customer.id}`);
         },
         [navigate, setAssignedCustomer],
-    );
+    ); 
 
-    /** 상담 거절 핸들러 */
     const handleRejectConsultation = useCallback(() => {
         setAssignedCustomer(null);
-    }, [setAssignedCustomer]);
+    }, [setAssignedCustomer]); 
 
-    /** 실시간 감시 로직 */
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key === "waitingCustomers") {
                 const newList: CustomerInfo[] = JSON.parse(e.newValue || "[]");
                 setRealtimeWaitingCount(newList.length);
-                
                 if (workStatus === "AVAILABLE" && !assignedCustomer && newList.length > 0) {
                     assignNextCustomer();
                 }
@@ -144,25 +172,18 @@ const Dashboard: React.FC = () => {
                 setRealtimeWaitingCount(Number(e.newValue || "0"));
             }
         };
-
         window.addEventListener("storage", handleStorageChange);
         return () => window.removeEventListener("storage", handleStorageChange);
-    }, [workStatus, assignedCustomer, assignNextCustomer, setRealtimeWaitingCount]);
+    }, [workStatus, assignedCustomer, assignNextCustomer, setRealtimeWaitingCount]); 
 
-    /** 데이터 로드 로직 (Any 및 Interface 경고 해결 버전) */
     useEffect(() => {
         const loadDashboardData = async () => {
             try {
                 setIsLoading(true);
                 const apiData: ConsultationResponse[] = await fetchConsultations();
                 const localHistoryRaw = localStorage.getItem("consultationHistory");
-                
                 const localHistory: LocalHistory[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
-                
-                const combinedData: ConsultationResponse[] = [
-                    ...localHistory, 
-                    ...apiData
-                ];
+                const combinedData: ConsultationResponse[] = [...localHistory, ...apiData];
                 setActivities(combinedData);
             } catch (error) {
                 console.error("데이터 로드 실패:", error);
@@ -171,7 +192,7 @@ const Dashboard: React.FC = () => {
             }
         };
         loadDashboardData();
-    }, []);
+    }, []); 
 
     const handleNotificationClick = (id: number) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -187,7 +208,7 @@ const Dashboard: React.FC = () => {
             localStorage.clear();
             navigate("/", { replace: true });
         }
-    }, [navigate]);
+    }, [navigate]); 
 
     const handleSaveDashboardMemo = useCallback(() => {
         if (!memo.trim()) return alert("내용을 입력해주세요.");
@@ -201,7 +222,7 @@ const Dashboard: React.FC = () => {
         const existingMemos = JSON.parse(localStorage.getItem("savedMemos") || "[]");
         localStorage.setItem("savedMemos", JSON.stringify([newMemo, ...existingMemos]));
         alert("메모가 저장되었습니다!");
-    }, [memo]);
+    }, [memo]); 
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000);
@@ -219,7 +240,7 @@ const Dashboard: React.FC = () => {
                 localStorage.setItem("consultationHistory", JSON.stringify(updatedHistory));
             }
         }
-    }, []);
+    }, []); 
 
     return (
         <div className={styles.container}>
@@ -233,7 +254,6 @@ const Dashboard: React.FC = () => {
                             {now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}{" "}
                             {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
-
                         <div style={{ position: 'relative' }} ref={popoverRef}>
                             <button type="button" className={styles.iconButton} onClick={() => setIsNotificationOpen(!isNotificationOpen)}>
                                 <Bell size={22} color="#1A1A1A" strokeWidth={2.5} />
@@ -286,17 +306,13 @@ const Dashboard: React.FC = () => {
                                     <span style={{ fontSize: "14px", fontWeight: 600 }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
                                 </div>
                             </div>
-                            <button type="button" className={workStatus === "AVAILABLE" ? styles.workStopBtn : styles.workStartBtn} onClick={toggleWorkStatus}>
+                            <button type="button" className={workStatus === "AVAILABLE" ? styles.workStopBtn : styles.workStartBtn} onClick={handleToggleStatus}>
                                 {workStatus === "AVAILABLE" ? "업무 잠시 멈춤" : "업무 시작하기"}
                             </button>
                         </section>
 
                         <div className={styles.statsGrid}>
-                            <div 
-                                className={styles.statCard} 
-                                onClick={() => setIsQueueModalOpen(true)}
-                                style={{ cursor: 'pointer' }}
-                            >
+                            <div className={styles.statCard} onClick={() => setIsQueueModalOpen(true)} style={{ cursor: 'pointer' }}>
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
                                 <div>
                                     <span className={styles.statLabel}>실시간 대기</span>
@@ -345,11 +361,7 @@ const Dashboard: React.FC = () => {
                                                     <ChevronRight size={18} className={styles.arrowIcon} />
                                                 </div>
                                             </button>
-                                            <button 
-                                                type="button"
-                                                onClick={(e) => handleDeleteActivity(e, log.consultation_id)}
-                                                style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer' }}
-                                            >
+                                            <button type="button" onClick={(e) => handleDeleteActivity(e, log.consultation_id)} style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer' }}>
                                                 <X size={12} color="#999" />
                                             </button>
                                         </div>
@@ -376,10 +388,15 @@ const Dashboard: React.FC = () => {
                             </div>
                         </section>
                         <section className={styles.glassCard}>
-                            <div className={styles.cardHeader}><h3 className={styles.cardTitle}><Megaphone size={18} color="#E6007E" /> 공지사항</h3></div>
+                            <div className={styles.cardHeader}>
+                                <h3 className={styles.cardTitle}><Megaphone size={18} color="#E6007E" /> 공지사항</h3>
+                                {/* 전체보기는 페이지 이동 유지 */}
+                                <button onClick={() => navigate('/notice')} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '12px' }}>전체보기</button>
+                            </div>
                             <div className={styles.noticeList}>
                                 {NOTICES.map((notice) => (
-                                    <div key={notice.id} className={styles.noticeItem} onClick={() => navigate(`/notice/${notice.id}`)} style={{ cursor: 'pointer' }}>
+                                    /** [수정] onClick 시 navigate 대신 모달 상태 업데이트 */
+                                    <div key={notice.id} className={styles.noticeItem} onClick={() => setSelectedNotice(notice)} style={{ cursor: 'pointer' }}>
                                         <span className={styles.noticeTitle}>{notice.title}</span>
                                         <span className={styles.noticeDate}>{notice.date}</span>
                                     </div>
@@ -390,10 +407,29 @@ const Dashboard: React.FC = () => {
                 </div>
             </main>
 
+            {/** [추가] 공지사항 모달 UI */}
+            {selectedNotice && (
+                <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                            <div className={styles.aiGlowBadge}>NOTICE</div>
+                            <button type="button" onClick={() => setSelectedNotice(null)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
+                                <X size={24} color="#999" />
+                            </button>
+                        </div>
+                        <h2 className={styles.modalHeading}>{selectedNotice.title}</h2>
+                        <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
+                            {selectedNotice.content}
+                        </div>
+                        <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '32px' }} onClick={() => setSelectedNotice(null)}>내용 확인</button>
+                    </div>
+                </div>
+            )}
+
             {/* 실시간 대기열 상세 모달 */}
             {isQueueModalOpen && (
                 <div className={styles.modalOverlay} onClick={() => setIsQueueModalOpen(false)}>
-                    <div className={styles.premiumModal} style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                             <div className={styles.aiGlowBadge}>LIVE QUEUE</div>
                             <button type="button" onClick={() => setIsQueueModalOpen(false)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
@@ -402,7 +438,7 @@ const Dashboard: React.FC = () => {
                         </div>
                         <h2 className={styles.modalHeading}>실시간 대기 고객 명단</h2>
                         
-                        <div style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
+                        <div style={{ marginTop: '20px', maxHeight: '360px', overflowY: 'auto' }}>
                             {waitingList.length > 0 ? (
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                     <thead>
@@ -410,6 +446,7 @@ const Dashboard: React.FC = () => {
                                             <th style={{ padding: '10px 5px' }}>순번</th>
                                             <th style={{ padding: '10px 5px' }}>고객명</th>
                                             <th style={{ padding: '10px 5px' }}>문의내용</th>
+                                            <th style={{ padding: '10px 5px', textAlign: 'center' }}>삭제</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -418,7 +455,15 @@ const Dashboard: React.FC = () => {
                                                 <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
                                                 <td style={{ padding: '12px 5px', fontWeight: 600 }}>{customer.name}</td>
                                                 <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
-                                                    {customer.inquiryMessage.length > 18 ? customer.inquiryMessage.slice(0, 18) + '...' : customer.inquiryMessage}
+                                                    {customer.inquiryMessage.length > 20 ? customer.inquiryMessage.slice(0, 20) + '...' : customer.inquiryMessage}
+                                                </td>
+                                                <td style={{ padding: '12px 5px', textAlign: 'center' }}>
+                                                    <button 
+                                                        onClick={() => handleRemoveWaitingCustomer(customer.id)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                                    >
+                                                        <X size={14} color="#FF4D4F" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -436,7 +481,6 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* 새로운 상담 배정 모달 */}
             {assignedCustomer && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.premiumModal}>
@@ -457,7 +501,6 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* 장애 대응 가이드 모달 */}
             {showGuide && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.premiumModal} style={{ maxWidth: "600px" }}>
