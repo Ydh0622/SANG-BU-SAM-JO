@@ -1,9 +1,16 @@
-import { apiStore, adminStore } from '../client'; 
+import { apiStore } from '../client'; 
 import type { ConsultationResponse } from '../../types/consultation';
 
 /**
- * [상부상조] 상담 관련 API 서비스
+ * [상부상조] 상담 관련 API 서비스 (8081 api-module 통합)
  */
+
+/** 백엔드 응답 객체 구조 정의 (any 대체) */
+interface ApiListResponse {
+    data?: ConsultationResponse[];
+    list?: ConsultationResponse[];
+    content?: ConsultationResponse[];
+}
 
 export interface ConsultationCompleteRequest {
     customer_request: string;
@@ -13,104 +20,97 @@ export interface ConsultationCompleteRequest {
     resolution_code: string;
 }
 
-// 로컬 환경인지 확인
 const isLocal = import.meta.env.DEV;
 
-/** 1. 상담 목록 전체 조회 (REQ-MGMT-001) */
+/** 1. 전체 상담 목록 조회 (api-module: 8081) */
 export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
     if (isLocal) {
-        return await adminStore.get('/api/v1/consultations');
+        try {
+            const response = await apiStore.get<ConsultationResponse[] | ApiListResponse>('/v1/consultations');
+            
+            if (Array.isArray(response)) return response;
+            
+            if (response && typeof response === 'object') {
+                const res = response as ApiListResponse;
+                const apiData = res.data || res.list || res.content;
+                if (Array.isArray(apiData)) return apiData;
+                
+                if ('consultation_id' in response) {
+                    return [response as unknown as ConsultationResponse];
+                }
+            }
+            return []; 
+        } catch (error) {
+            console.error("상담 목록 로드 실패:", error);
+            return []; 
+        }
     }
 
-    // Vercel 시연용 Mock 데이터 (Dashboard.tsx의 렌더링 필드명에 맞춤)
-    console.warn("시연용 모드: 가짜 상담 목록을 반환합니다.");
-    
-    const mockData = [
-        {
-            consultation_id: 101,
-            customer_name: "김유플",
-            status: "DONE", // Dashboard에서 '처리완료'로 표시됨
-            priority: "HIGH",
-            category: "요금제 문의",
-            issue_detail: "5G 다이렉트",
-            content_preview: "5G 다이렉트 요금제 변경하고 싶어요.",
-            channel_type: "CHAT",
-            createdAt: new Date().toISOString(),
-        },
-        {
-            consultation_id: 102,
-            customer_name: "이엘지",
-            status: "PROGRESS", // Dashboard에서 '상담중'으로 표시됨
-            priority: "MEDIUM",
-            category: "기기 결합",
-            issue_detail: "가족 무한 결합",
-            content_preview: "인터넷이랑 결합하면 얼마나 할인되나요?",
-            channel_type: "CALL",
-            createdAt: new Date().toISOString(),
-        },
-        {
-            consultation_id: 103,
-            customer_name: "박Eureka",
-            status: "PROGRESS",
-            priority: "LOW",
-            category: "분실 신고",
-            issue_detail: "정지 요청",
-            content_preview: "핸드폰을 잃어버렸어요. 정지 부탁드립니다.",
-            channel_type: "CHAT",
-            createdAt: new Date().toISOString(),
-        }
-    ];
-
-    // 타입을 강제로 맞추어 에러를 방지합니다.
-    return mockData as unknown as ConsultationResponse[];
-};
-
-/** 2. 다음 상담 고객 선점 (REQ-QUE-001) */
-export const claimNextCustomer = () => {
-    if (isLocal) return apiStore.post('/api/v1/consultations/queue/claim-next');
-    return Promise.resolve({ data: { message: "시연용: 고객 선점 성공" } });
-};
-
-/** 3. 상담 승인 및 시작 (REQ-PRE-004) */
-export const acceptConsultation = (consultationId: string | number) => {
-    if (isLocal) return apiStore.post(`/api/v1/consultations/${consultationId}/accept`);
-    return Promise.resolve({ data: { success: true } });
-};
-
-/** 4. 개별 상담 상세 정보 조회 (REQ-MGMT-002) */
-export const getConsultationDetail = async (consultId: string): Promise<ConsultationResponse> => {
-    if (isLocal) return await adminStore.get(`/api/v1/consultations/${consultId}`);
-
-    // 시연용 상세 데이터 (상세 페이지에서도 snake_case를 쓸 확률이 높음)
-    const detailData = {
-        consultation_id: Number(consultId),
+    const mockData: ConsultationResponse[] = [{
+        consultation_id: 101,
         customer_name: "김유플",
-        status: "PROGRESS",
-        priority: "HIGH",
+        contact_info: "010-1234-5678", // 필수 속성
+        status: "DONE", 
+        priority: "HIGH", 
         category: "요금제 문의",
         issue_detail: "5G 다이렉트",
-        content_preview: "5G 다이렉트 요금제 변경하고 싶어요. 지금 쓰고 있는 요금제보다 저렴한 게 있을까요?",
+        content_preview: "5G 다이렉트 요금제 변경하고 싶어요.",
         channel_type: "CHAT",
-        createdAt: new Date().toISOString(),
-    };
-
-    return detailData as unknown as ConsultationResponse;
+        created_at: new Date().toISOString(), // createdAt -> created_at
+    }];
+    return mockData;
 };
 
-/** 5. 메시지 전송 (실시간 채팅) */
-export const sendConsultationMessage = (consultId: string, message: string) => {
-    if (isLocal) return apiStore.post(`/api/v1/consultations/${consultId}/messages`, { message });
-    return Promise.resolve({ data: { sentMessage: message } });
+/** 8. 대기 상담 수 조회 (api-module: 8081) */
+export const fetchWaitingCount = async (): Promise<{ count: number }> => {
+    if (isLocal) {
+        // AxiosResponse와의 타입 충돌을 피하기 위해 unknown 단언 사용
+        const response = await apiStore.get('/v1/consultations/waiting/count') as unknown as { count: number };
+        return response;
+    }
+    return { count: 0 };
 };
 
-/** 6. 상담 종료 및 확정 (REQ-PRE-011) */
-export const completeConsultation = (consultId: string, data: ConsultationCompleteRequest) => {
-    if (isLocal) return apiStore.post(`/api/v1/consultations/${consultId}/end`, data);
-    return Promise.resolve({ data: { success: true } });
+/** 9. 대기 상담 목록 조회 (api-module: 8081) */
+export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[]> => {
+    if (isLocal) {
+        try {
+            const response = await apiStore.get<ConsultationResponse[] | ApiListResponse>('/v1/consultations/waiting');
+            
+            if (Array.isArray(response)) return response;
+            
+            if (response && typeof response === 'object') {
+                const res = response as ApiListResponse;
+                const apiData = res.data || res.list || res.content;
+                if (Array.isArray(apiData)) return apiData;
+            }
+            return [];
+        } catch (error) {
+            console.error("대기 상담 목록 로드 실패:", error);
+            return [];
+        }
+    }
+
+    const mockWaitingData: ConsultationResponse[] = [
+        {
+            consultation_id: 201,
+            customer_name: "이유플",
+            contact_info: "010-9876-5432", // 필수 속성
+            status: "IN_PROGRESS", // WAITING 대신 허용된 Enum 값
+            priority: "MID", // NORMAL 대신 허용된 Enum 값
+            category: "기기변경",
+            issue_detail: "아이폰 16 Pro",
+            content_preview: "기기변경 혜택이 궁금해요.",
+            channel_type: "CHAT",
+            created_at: new Date().toISOString(), // createdAt -> created_at
+        }
+    ];
+    return mockWaitingData;
 };
 
-/** 7. 상담 컨텍스트 재조회 (REQ-PRE-004) */
-export const getConsultationContext = (consultId: string | number) => {
-    if (isLocal) return apiStore.get(`/api/v1/consultations/${consultId}/context`);
-    return Promise.resolve({ data: { context: "시연용 상담 컨텍스트입니다." } });
-};
+/** 나머지 기능들 모두 apiStore로 통일 */
+export const claimNextCustomer = () => apiStore.post('/v1/consultations/queue/claim-next');
+export const acceptConsultation = (consultId: string | number) => apiStore.post(`/v1/consultations/${consultId}/accept`);
+export const getConsultationDetail = (consultId: string) => apiStore.get<ConsultationResponse>(`/v1/consultations/${consultId}`);
+export const sendConsultationMessage = (consultId: string, message: string) => apiStore.post(`/v1/consultations/${consultId}/messages`, { message });
+export const completeConsultation = (consultId: string, data: ConsultationCompleteRequest) => apiStore.post(`/v1/consultations/${consultId}/end`, data);
