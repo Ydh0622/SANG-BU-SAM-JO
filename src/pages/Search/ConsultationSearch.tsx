@@ -16,8 +16,10 @@ import {
     UserCheck,
 } from "lucide-react";
 import type React from "react";
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchConsultations } from "../../api/services/consultation";
+import type { ConsultationResponse } from "../../types/consultation";
 import * as styles from "./Style/Search.css.ts";
 
 /** 검색 결과 인터페이스 */
@@ -33,18 +35,11 @@ interface SearchResult {
     process_status: "COMPLETED" | "PENDING" | "TRANSFERRED";
 }
 
-/** 로컬 스토리지에서 넘어오는 데이터 타입 정의 */
-interface LocalHistoryItem {
-    consultation_id: string;
-    customer_name: string;
-    category: string;
-    content_preview?: string;
-    summary?: string;
-    status: string;
-    created_at?: string;
+interface LocalHistoryItem extends ConsultationResponse {
+    customerId?: number;
+    initialMessage?: string;
+    productLineCode?: string;
 }
-
-const MOCK_RESULTS: SearchResult[] = [];
 
 const ConsultationSearch: React.FC = () => {
     const navigate = useNavigate();
@@ -53,33 +48,72 @@ const ConsultationSearch: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeFilter, setActiveFilter] = useState<string>("ALL");
     const [searchDate, setSearchDate] = useState(""); 
-    
-    const [allResults] = useState<SearchResult[]>(() => {
-        const localHistoryRaw = localStorage.getItem("consultationHistory");
-        const localHistory: LocalHistoryItem[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
-        const currentAgentName = localStorage.getItem("userName") || "상담원";
+    const [allResults, setAllResults] = useState<SearchResult[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-        const convertedLocal: SearchResult[] = localHistory.map((item) => ({
-            id: item.consultation_id,
-            date: new Date(item.created_at || Date.now()).toLocaleDateString(),
-            customer: item.customer_name,
-            category: item.category,
-            summary: item.content_preview || item.summary || "상담 내용 요약 없음",
-            agent: currentAgentName,
-            is_mine: true,
-            is_repeat: false,
-            process_status: item.status === "DONE" ? "COMPLETED" : "PENDING"
-        }));
+    /** 데이터 로드 로직 */
+    const loadSearchData = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const apiRes = await fetchConsultations();
+            const currentAgentName = localStorage.getItem("userName") || "상담원";
+            
+            // 1. API 데이터 변환 (방어 코드 적용)
+            const convertedApi: SearchResult[] = (apiRes || []).map((item) => ({
+                id: String(item.consultation_id || ""),
+                date: new Date(item.created_at || Date.now()).toLocaleDateString(),
+                customer: item.customer_name || "이름 없음",
+                category: item.category || "일반상담",
+                summary: item.content_preview || item.issue_detail || "내용 없음",
+                agent: currentAgentName,
+                is_mine: true,
+                is_repeat: false,
+                process_status: item.status === "DONE" ? "COMPLETED" : "PENDING"
+            }));
 
-        return [...convertedLocal, ...MOCK_RESULTS];
-    });
+            // 2. 로컬 스토리지 데이터 통합
+            const localHistoryRaw = localStorage.getItem("consultationHistory");
+            const localHistory: LocalHistoryItem[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
+            const convertedLocal: SearchResult[] = localHistory.map((item) => ({
+                id: String(item.consultation_id || ""),
+                date: new Date(item.created_at || Date.now()).toLocaleDateString(),
+                customer: item.customer_name || "이름 없음",
+                category: item.category || "일반상담",
+                summary: item.content_preview || item.initialMessage || "상담 내역",
+                agent: currentAgentName,
+                is_mine: true,
+                is_repeat: false,
+                process_status: item.status === "DONE" ? "COMPLETED" : "PENDING"
+            }));
 
+            const merged = [...convertedApi, ...convertedLocal];
+            const uniqueResults = Array.from(new Map(merged.filter(i => i.id).map(item => [item.id, item])).values());
+            
+            setAllResults(uniqueResults);
+        } catch (error) {
+            console.error("검색 데이터 로드 실패:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadSearchData();
+    }, [loadSearchData]);
+
+    /** [수정] filteredResults 로직 - toLowerCase 에러 방지막 설치 */
     const filteredResults = useMemo(() => {
         return allResults.filter((res) => {
+            // [해결] 데이터가 undefined일 경우를 대비해 빈 문자열(|| "") 처리
+            const customerName = (res?.customer || "").toLowerCase();
+            const summaryText = (res?.summary || "").toLowerCase();
+            const consultationId = (res?.id || "");
+            const term = searchTerm.toLowerCase();
+
             const matchSearch =
-                res.customer.includes(searchTerm) || 
-                res.id.includes(searchTerm) || 
-                res.summary.includes(searchTerm);
+                customerName.includes(term) || 
+                consultationId.includes(term) || 
+                summaryText.includes(term);
 
             const matchDate = searchDate ? res.date.includes(searchDate.replace(/-/g, ".")) : true;
 
@@ -92,20 +126,18 @@ const ConsultationSearch: React.FC = () => {
         });
     }, [searchTerm, activeFilter, allResults, searchDate]);
 
-    // [수정] catch 문에서 (error) 대신 ()를 사용하여 'never used' 경고 해결
     const handleCalendarClick = () => {
         if (dateInputRef.current) {
             try {
                 dateInputRef.current.showPicker();
             } catch {
-                // error 변수를 선언하지 않음으로써 경고 제거
                 dateInputRef.current.focus();
             }
         }
     };
 
     const handleRowClick = (id: string) => {
-        if (id.startsWith("LOG_")) {
+        if (id.includes("LOG_")) {
             navigate(`/history/${id}`);
         } else {
             navigate(`/consultation/${id}`);
@@ -202,7 +234,7 @@ const ConsultationSearch: React.FC = () => {
                         >
                             <RefreshCcw size={16} /> 초기화
                         </button>
-                        <button type="button" className={styles.searchBtn}>검색하기</button>
+                        <button type="button" className={styles.searchBtn} onClick={loadSearchData}>검색하기</button>
                     </div>
                 </div>
             </section>
@@ -216,68 +248,80 @@ const ConsultationSearch: React.FC = () => {
                 </div>
 
                 <div className={styles.tableWrapper}>
-                    <table className={styles.table}>
-                        <thead>
-                            <tr>
-                                <th>상담 ID</th>
-                                <th>고객명</th>
-                                <th>상담 카테고리</th>
-                                <th>AI 요약 내용</th>
-                                <th>담당자</th>
-                                <th>처리 상태</th>
-                                <th>상세</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredResults.map((res) => (
-                                <tr key={res.id} className={styles.tableRow} onClick={() => handleRowClick(res.id)}>
-                                    <td style={{ color: "#888", fontSize: "13px" }}>#{res.id}</td>
-                                    <td>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                            <span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span>
-                                            {res.is_repeat && (
-                                                <span style={{ padding: "2px 8px", fontSize: "11px", backgroundColor: "#FFF0F6", color: "#E6007E", borderRadius: "4px", border: "1px solid #E6007E", fontWeight: 800 }}>
-                                                    재상담
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td>{res.category}</td>
-                                    <td>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                            <MessageCircle size={14} color="#007AFF" />
-                                            <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {res.summary}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                            <User size={14} color={res.is_mine ? "#E6007E" : "#999"} />
-                                            <span style={{ fontWeight: res.is_mine ? 800 : 400 }}>{res.agent}</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: "6px",
-                                            padding: "6px 12px",
-                                            borderRadius: "100px",
-                                            fontSize: "12px",
-                                            fontWeight: 800,
-                                            backgroundColor: res.process_status === "COMPLETED" ? "#DCFCE7" : res.process_status === "PENDING" ? "#FEF3C7" : "#F3F4F6",
-                                            color: res.process_status === "COMPLETED" ? "#15803D" : res.process_status === "PENDING" ? "#B45309" : "#4B5563",
-                                        }}>
-                                            {res.process_status === "COMPLETED" ? <CheckCircle size={14} /> : res.process_status === "PENDING" ? <Clock size={14} /> : <ExternalLink size={14} />}
-                                            {res.process_status === "COMPLETED" ? "처리 완료" : res.process_status === "PENDING" ? "기록 대기" : "부서 이관"}
-                                        </div>
-                                    </td>
-                                    <td><ChevronRight size={18} color="#CCC" /></td>
+                    {isLoading ? (
+                        <div style={{ textAlign: "center", padding: "40px", color: "#999" }}>데이터를 불러오는 중입니다...</div>
+                    ) : (
+                        <table className={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th>상담 ID</th>
+                                    <th>고객명</th>
+                                    <th>상담 카테고리</th>
+                                    <th>상세 내용</th>
+                                    <th>담당자</th>
+                                    <th>처리 상태</th>
+                                    <th>상세</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {filteredResults.map((res) => (
+                                    <tr key={res.id} className={styles.tableRow} onClick={() => handleRowClick(res.id)}>
+                                        <td style={{ color: "#888", fontSize: "13px" }}>#{res.id}</td>
+                                        <td>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span>
+                                                {res.is_repeat && (
+                                                    <span style={{ padding: "2px 8px", fontSize: "11px", backgroundColor: "#FFF0F6", color: "#E6007E", borderRadius: "4px", border: "1px solid #E6007E", fontWeight: 800 }}>
+                                                        재상담
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>{res.category}</td>
+                                        <td>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <MessageCircle size={14} color="#007AFF" />
+                                                <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {res.summary}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <User size={14} color={res.is_mine ? "#E6007E" : "#999"} />
+                                                <span style={{ fontWeight: res.is_mine ? 800 : 400 }}>{res.agent}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                padding: "6px 12px",
+                                                borderRadius: "100px",
+                                                fontSize: "12px",
+                                                fontWeight: 800,
+                                                backgroundColor: res.process_status === "COMPLETED" ? "#DCFCE7" : res.process_status === "PENDING" ? "#FEF3C7" : "#F3F4F6",
+                                                color: res.process_status === "COMPLETED" ? "#15803D" : res.process_status === "PENDING" ? "#B45309" : "#4B5563",
+                                            }}>
+                                                {res.process_status === "COMPLETED" ? <CheckCircle size={14} /> : res.process_status === "PENDING" ? <Clock size={14} /> : <ExternalLink size={14} />}
+                                                {res.process_status === "COMPLETED" ? "처리 완료" : res.process_status === "PENDING" ? "기록 대기" : "부서 이관"}
+                                            </div>
+                                        </td>
+                                        <td><ChevronRight size={18} color="#CCC" /></td>
+                                    </tr>
+                                ))}
+                                {!isLoading && filteredResults.length === 0 && (
+                                    <tr>
+                                        <td colSpan={7} style={{ textAlign: "center", padding: "80px 0", color: "#999" }}>
+                                            <Search size={48} style={{ opacity: 0.1, marginBottom: "16px" }} />
+                                            <p>검색 결과가 없습니다.</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </section>
         </div>

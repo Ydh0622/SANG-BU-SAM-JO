@@ -25,26 +25,9 @@ import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation"
 import { useLocalStorage } from "../../hooks/useLocalStorage"; 
 import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from "../../api/services/consultation"; 
 import type { ConsultationResponse } from "../../types/consultation"; 
-// === API_STORE_IMPORT ===
-import { apiStore } from "../../api/client"; 
 import * as styles from "./Style/Dashboard.css.ts";
 
-/**
- * [상부상조] 타입 정의 및 창 확장
- */
-interface Notice {
-    id: number;
-    title: string;
-    date: string;
-    content: string;
-}
-
-// 브라우저 window 객체 확장을 위한 인터페이스
-interface ExtendedWindow extends Window {
-    createTest?: () => Promise<void>;
-}
-
-const NOTICES: Notice[] = [
+const NOTICES = [
     { 
         id: 1, 
         title: "[점검] AI 상담 요약 엔진 정기 점검 안내", 
@@ -85,7 +68,7 @@ const Dashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
-    const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
+    const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
     const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
     
@@ -133,32 +116,6 @@ const Dashboard: React.FC = () => {
         }
     }, []);
 
-    /**
-     * === BACKEND_CREATE_TEST ===
-     * 콘솔에서 실행: createTest()
-     */
-    useEffect(() => {
-        const win = window as ExtendedWindow;
-        win.createTest = async () => {
-            console.log("🚀 create API 연동 테스트를 시작합니다...");
-            try {
-                await apiStore.post('/v1/consultations', {
-                    customer_name: "테스트 고객",
-                    category: "요금제",
-                    issue_detail: "API 테스트",
-                    content_preview: "데이터 생성 테스트입니다.",
-                    priority: "MEDIUM",
-                    channel_type: "CHAT"
-                });
-                console.log("✅ 생성 성공!");
-                loadDashboardData(); 
-            } catch (err) {
-                console.error("❌ 생성 실패:", err);
-            }
-        };
-        return () => { delete win.createTest; };
-    }, [loadDashboardData]);
-
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -192,47 +149,39 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
+    // 🔥 [수정] any를 완전히 제거하고 타입 가드를 적용했습니다.
     const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
             const localData = localStorage.getItem("waitingCustomers");
             const currentWaiting: CustomerInfo[] = localData ? JSON.parse(localData) : [];
             const updatedWaiting = currentWaiting.filter(c => c.id !== customerId);
-            
             localStorage.setItem("waitingCustomers", JSON.stringify(updatedWaiting));
-            setApiWaitingList(prev => [...prev]); 
+            
+            // any 대신 ConsultationResponse 타입을 사용하고 속성 존재 여부를 체크합니다.
+            setApiWaitingList((prev) => 
+                prev.filter((item) => {
+                    const id = 'consultation_id' in item ? item.consultation_id : (item as { id: string | number }).id;
+                    return id !== customerId;
+                })
+            ); 
         }
     }, []);
 
-    // === 상담 배정(Assign) API 연결 및 로그 확인 ===
     const handleAcceptConsultation = useCallback(
-        async (customer: CustomerInfo | ConsultationResponse) => {
+        (customer: CustomerInfo | ConsultationResponse) => {
+            const name = 'customer_name' in customer ? customer.customer_name : customer.name;
+            const msg = 'content_preview' in customer ? customer.content_preview : (customer as CustomerInfo).inquiryMessage;
             const id = 'consultation_id' in customer ? customer.consultation_id : customer.id;
-            
-            // 콘솔에 배정 요청 로그를 남겨 연결을 확인합니다.
-            console.log(`[API Request] POST /api/v1/consultations/${id}/assign`);
 
-            try {
-                // 1. 배정 API 호출
-                await apiStore.post(`/v1/consultations/${id}/assign`);
-                console.log(`[API Success] 상담 배정 성공 (ID: ${id})`);
+            localStorage.setItem("isMatched", "true");
+            localStorage.setItem("lastInquiry", JSON.stringify({
+                message: msg,
+                customerName: name,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }));
 
-                const name = 'customer_name' in customer ? customer.customer_name : customer.name;
-                const msg = 'content_preview' in customer ? customer.content_preview : (customer as CustomerInfo).inquiryMessage;
-
-                localStorage.setItem("isMatched", "true");
-                localStorage.setItem("lastInquiry", JSON.stringify({
-                    message: msg,
-                    customerName: name,
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                }));
-
-                setAssignedCustomer(null);
-                // 2. 상세 페이지 이동
-                navigate(`/consultation/${id}`);
-            } catch (error) {
-                console.error(`[API Error] 상담 배정 실패:`, error);
-                alert("상담 배정에 실패했습니다. 이미 배정된 상담인지 확인해주세요.");
-            }
+            setAssignedCustomer(null);
+            navigate(`/consultation/${id}`);
         },
         [navigate, setAssignedCustomer],
     ); 
@@ -452,7 +401,23 @@ const Dashboard: React.FC = () => {
                 </div>
             </main>
 
-            {/* 실시간 대기열 상세 모달 */}
+            {selectedNotice && (
+                <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                            <div className={styles.aiGlowBadge}>NOTICE</div>
+                            <button type="button" onClick={() => setSelectedNotice(null)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
+                                <X size={24} color="#999" />
+                            </button>
+                        </div>
+                        <h2 className={styles.modalHeading}>{selectedNotice.title}</h2>
+                        <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
+                            {selectedNotice.content}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isQueueModalOpen && (
                 <div className={styles.modalOverlay} onClick={() => setIsQueueModalOpen(false)}>
                     <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
@@ -478,8 +443,8 @@ const Dashboard: React.FC = () => {
                                     <tbody>
                                         {waitingList.map((item, index) => {
                                             const name = 'customer_name' in item ? item.customer_name : item.name;
-                                            const msg = 'content_preview' in item ? item.content_preview : (item as CustomerInfo).inquiryMessage;
-                                            const id = 'consultation_id' in item ? item.consultation_id : (item as CustomerInfo).id;
+                                            const msg = 'content_preview' in item ? item.content_preview : item.inquiryMessage;
+                                            const id = 'consultation_id' in item ? item.consultation_id : item.id;
 
                                             return (
                                                 <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
@@ -512,8 +477,7 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             )}
-            
-            {/* 상담 배정 모달 */}
+
             {assignedCustomer && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.premiumModal}>
@@ -532,6 +496,7 @@ const Dashboard: React.FC = () => {
                                         : (assignedCustomer as CustomerInfo).inquiryMessage}
                                 </p>
                             </div>
+                            <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}><strong>최근 이력:</strong> {assignedCustomer.recentHistory || "내역 없음"}</p>
                         </div>
                         <div className={styles.modalActions}>
                             <button type="button" className={styles.primaryBtn} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
@@ -541,29 +506,9 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* 공지사항 상세 모달 */}
-            {selectedNotice && (
-                <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
-                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                            <div className={styles.aiGlowBadge}>NOTICE</div>
-                            <button type="button" onClick={() => setSelectedNotice(null)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
-                                <X size={24} color="#999" />
-                            </button>
-                        </div>
-                        <h2 className={styles.modalHeading}>{selectedNotice.title}</h2>
-                        <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
-                            {selectedNotice.content}
-                        </div>
-                        <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '32px' }} onClick={() => setSelectedNotice(null)}>내용 확인</button>
-                    </div>
-                </div>
-            )}
-
-            {/* 장애 대응 가이드 모달 */}
             {showGuide && (
-                <div className={styles.modalOverlay} onClick={() => setShowGuide(false)}>
-                    <div className={styles.premiumModal} style={{ maxWidth: "600px" }} onClick={e => e.stopPropagation()}>
+                <div className={styles.modalOverlay}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "600px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                             <div className={styles.aiGlowBadge}>KNOWLEDGE BASE</div>
                             <button type="button" onClick={() => setShowGuide(false)} style={{ background: "none", border: "none" }}><X size={24} color="#999" /></button>

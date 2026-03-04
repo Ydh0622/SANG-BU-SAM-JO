@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import type { CredentialResponse } from "@react-oauth/google";
 import { authApi } from "../../api/services/auth";
-import { MessageSquare, ArrowRight, UserCircle } from "lucide-react"; // UserCircle 아이콘 추가
+import { MessageSquare, ArrowRight, UserCircle } from "lucide-react";
 import axios from "axios";
 
 import * as styles from "./Style/Login.css.ts";
@@ -18,6 +18,12 @@ interface BackendLoginResponse {
     accessToken?: string;
     user?: { name: string };
   };
+}
+
+// 💡 유저 정보 타입을 정의합니다.
+interface UserInfo {
+  name: string;
+  email: string;
 }
 
 const LoginPage: React.FC = () => {
@@ -36,12 +42,25 @@ const LoginPage: React.FC = () => {
         const response = (await authApi.loginWithGoogle(idToken)) as BackendLoginResponse;
 
         const token = response.token || response.accessToken || response.data?.token || response.data?.accessToken;
-        const userName = response.user?.name || response.data?.user?.name || "상담원";
-
+        
         if (!token) throw new Error("서버 응답에 토큰이 없습니다.");
 
         localStorage.setItem("token", token);
-        localStorage.setItem("userName", userName);
+
+        try {
+          console.log("📍 [LoginPage] 내 정보 조회(users/me) 시도...");
+          
+          // 💡 [수정] 반환 타입을 UserInfo로 강제 지정하여 'name' 속성 접근 에러를 해결합니다.
+          const userInfo = (await authApi.getMe()) as unknown as UserInfo;
+          
+          const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
+          localStorage.setItem("userName", realName);
+          console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName}`);
+        } catch (userError) {
+          console.error("⚠️ [LoginPage] 내 정보 조회 실패, 기본 정보 사용:", userError);
+          const backupName = response.user?.name || response.data?.user?.name || "상담원";
+          localStorage.setItem("userName", backupName);
+        }
         
         navigate("/dashboard", { replace: true });
       } catch (e: unknown) {
@@ -60,14 +79,12 @@ const LoginPage: React.FC = () => {
 
   /** [추가] 게스트 로그인 핸들러 */
   const handleGuestLogin = () => {
-    // 1. 시연 및 포트폴리오 확인을 위한 가짜 데이터 세팅
     localStorage.setItem("token", "guest_mock_token_uplus_eureka_2026");
-    localStorage.setItem("userName", "게스트"); // 방문자 성함 표시
+    localStorage.setItem("userName", "게스트"); 
     localStorage.setItem("userEmail", "guest_view@uplus.co.kr");
     localStorage.setItem("userDept", "고객케어팀 (데모)");
     localStorage.setItem("userRank", "체험 계정");
 
-    // 2. 대시보드로 즉시 이동
     navigate("/dashboard", { replace: true });
   };
 
@@ -84,7 +101,6 @@ const LoginPage: React.FC = () => {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", gap: "16px", margin: "24px 0" }}>
           {!isLoggingIn ? (
             <>
-              {/* 구글 로그인 버튼 */}
               <div style={{ transform: 'scale(1.05)' }}> 
                 <GoogleLogin
                   onSuccess={handleLoginSuccess}
@@ -97,7 +113,6 @@ const LoginPage: React.FC = () => {
                 />
               </div>
 
-              {/* [추가] 게스트 로그인 버튼 */}
               <button 
                 type="button" 
                 onClick={handleGuestLogin}
