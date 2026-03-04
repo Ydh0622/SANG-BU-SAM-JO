@@ -51,6 +51,7 @@ interface FaqItem {
     similarity_score: number;
 }
 
+/** [해결] 미사용 정의 해결 및 명확한 응답 타입 정의 */
 interface FaqResponse {
     recommendations: FaqItem[];
 }
@@ -78,7 +79,7 @@ const ConsultationDetail: React.FC = () => {
     const [showExitModal, setShowExitModal] = useState(false);
 
     const [waitingCount] = useState<number>(() => {
-        const count = localStorage.getItem("realtime_waiting_count");
+        const count = localStorage.getItem("dashboard_waiting_count") || localStorage.getItem("realtime_waiting_count");
         return count ? Number(count) : 0;
     });
 
@@ -104,61 +105,64 @@ const ConsultationDetail: React.FC = () => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
+    /** [해결] any 제거 및 FaqResponse 활용 */
     const fetchSimilarFaqs = useCallback(async (text: string) => {
+        if (!text) return;
         try {
-            const response = await getSimilarFaq(text) as unknown as FaqResponse;
-            const faqs = response?.recommendations || response; 
-            if (Array.isArray(faqs)) setSimilarFaqs(faqs);
-        } catch (err) { console.error("FAQ 로드 실패:", err); }
+            const response = await getSimilarFaq(text) as unknown as FaqResponse | FaqItem[];
+            const faqs = Array.isArray(response) ? response : response?.recommendations || [];
+            setSimilarFaqs(faqs);
+        } catch (error) { 
+            console.error("FAQ 로드 실패:", error); 
+        }
     }, []);
 
     const handleSaveAndExportFile = useCallback(() => {
         if (messages.length === 0) return;
         try {
-            const title = `=== LG U+ 상담 기록 (ID: ${customerId}) ===\n`;
+            const customerName = customerInfo?.customer_name || "Unknown";
+            const title = `=== LG U+ 상담 기록 (고객: ${customerName}) ===\n`;
             const chatLogs = messages.map(m => `[${m.time}] ${m.sender.toUpperCase()}: ${m.text}`).join('\n');
             const blob = new Blob([title + chatLogs], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `상담기록_${customerInfo?.customer_name}.txt`); 
+            link.download = `상담기록_${customerName}_${new Date().toLocaleDateString()}.txt`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
-        } catch (error) { console.error(error); }
-    }, [customerId, messages, customerInfo]);
+        } catch (error) { 
+            console.error("파일 다운로드 실패:", error); 
+        }
+    }, [messages, customerInfo]);
 
     useEffect(() => {
         const loadDetail = async () => {
             if (!customerId) return;
             try {
                 setIsLoading(true);
-                const data = await getConsultationDetail(customerId);
+                // [해결] any 제거를 위한 타입 단언 및 구조 분해
+                const response = await getConsultationDetail(customerId) as { data?: ConsultationResponse } | ConsultationResponse;
+                const actualData = ('data' in response && response.data) ? response.data : (response as ConsultationResponse);
+
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
 
                 setCustomerInfo({
-                    ...data,
-                    customer_name: customerData?.name || data.customer_name,
-                    contact_info: customerData?.phone || data.contact_info,
+                    ...actualData,
+                    customer_name: customerData?.name || actualData.customer_name || "고객",
+                    contact_info: customerData?.phone || actualData.contact_info || "010-0000-0000",
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
-            } catch (err) {
-                console.warn("서버 데이터 로드 실패, 로컬 스토리지 확인:", err);
+            } catch (error) {
+                console.warn("데이터 로드 실패, 로컬 데이터 확인", error);
                 const localHistoryRaw = localStorage.getItem("consultationHistory");
-                
                 if (localHistoryRaw) {
                     const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
-                    const fallbackData = localHistory.find(
-                        (item: ConsultationResponse) => String(item.consultation_id) === String(customerId)
-                    );
-                    
-                    if (fallbackData) {
-                        setCustomerInfo(fallbackData as ExtendedConsultationResponse);
-                    } else {
-                        navigate("/dashboard");
-                    }
+                    const fallbackData = localHistory.find(item => String(item.consultation_id) === String(customerId));
+                    if (fallbackData) setCustomerInfo(fallbackData as ExtendedConsultationResponse);
+                    else navigate("/dashboard");
                 } else {
                     navigate("/dashboard");
                 }
@@ -166,7 +170,7 @@ const ConsultationDetail: React.FC = () => {
                 const lastInquiry = localStorage.getItem("lastInquiry");
                 if (lastInquiry) {
                     const parsed = JSON.parse(lastInquiry);
-                    setMessages([{ id: 1, sender: "customer", text: parsed.message, time: parsed.time || "14:20" }]);
+                    setMessages([{ id: 1, sender: "customer", text: parsed.message, time: parsed.time || "방금 전" }]);
                     fetchSimilarFaqs(parsed.message);
                 }
                 setIsLoading(false);
@@ -183,47 +187,34 @@ const ConsultationDetail: React.FC = () => {
         const messageId = Date.now();
         
         setInputValue("");
+        setMessages((prev) => [...prev, { id: messageId, sender: "agent", text: textToSend, time: now }]);
 
-        const newMessage: Message = { id: messageId, sender: "agent", text: textToSend, time: now };
-        setMessages((prev) => [...prev, newMessage]);
-
-        localStorage.setItem("agentMessage", JSON.stringify({
-            id: messageId,
-            text: textToSend,
-            time: now
-        }));
-        
         try {
             await sendConsultationMessage(customerId, textToSend);
             setIsTyping(true);
-            setTimeout(() => setIsTyping(false), 2000);
-        } catch (err) {
-            console.warn("메시지 서버 전송 실패 (로컬 유지):", err);
+            setTimeout(() => setIsTyping(false), 1500);
+        } catch (error) {
+            console.warn("메시지 서버 전송 실패:", error);
         }
     }, [inputValue, customerId]);
 
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            try {
-                await completeConsultation(customerId, record); 
-            } catch {
-                console.warn("서버 결과 저장 실패, 로컬 히스토리만 업데이트합니다.");
-            }
+            await completeConsultation(customerId, record); 
 
             const existingHistoryRaw = localStorage.getItem("consultationHistory");
             const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
             
-            // [해결] consultation_id(number), priority("MID"), contact_info(필수) 추가
             const newDoneEntry: ConsultationResponse = {
-                consultation_id: Date.now(), 
+                consultation_id: Number(customerId) || Date.now(), 
                 customer_name: customerInfo?.customer_name || "알 수 없는 고객",
-                contact_info: customerInfo?.contact_info || "010-0000-0000",
+                contact_info: customerInfo?.contact_info || "정보 없음",
                 category: "채팅상담", 
                 issue_detail: record.issue_type_code === "BILL_INQUIRY" ? "요금/결합 할인" : "일반 문의",
                 content_preview: record.summary_text,
                 status: "DONE",
-                priority: "MID", 
+                priority: customerInfo?.priority || "MID", 
                 channel_type: "CHAT",
                 created_at: new Date().toISOString()
             };
@@ -233,14 +224,16 @@ const ConsultationDetail: React.FC = () => {
             
             alert("상담 내역이 저장되었습니다.");
             navigate("/dashboard"); 
-        } catch (err) { console.error(err); }
+        } catch (error) { 
+            console.error("종료 처리 실패:", error); 
+        }
     };
 
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages, isTyping]);
 
-    if (isLoading) return <div className={styles.loadingContainer}>데이터 로드 중...</div>;
+    if (isLoading) return <div className={styles.loadingContainer}>상담 정보를 불러오는 중입니다...</div>;
 
     return (
         <div className={styles.container}>
@@ -278,7 +271,7 @@ const ConsultationDetail: React.FC = () => {
                         <div className={styles.infoItem}>
                             <Phone size={16} color="#666" />
                             <span>{isPhoneVisible ? (customerInfo?.contact_info) : "010-****-****"}</span>
-                            <button type="button" onClick={() => setIsPhoneVisible(!isPhoneVisible)} style={{ marginLeft: "auto" }}>
+                            <button type="button" onClick={() => setIsPhoneVisible(!isPhoneVisible)} style={{ marginLeft: "auto", background: 'none', border: 'none', cursor: 'pointer' }}>
                                 {isPhoneVisible ? <EyeOff size={14} color="#999" /> : <Eye size={14} color="#E6007E" />}
                             </button>
                         </div>
@@ -349,26 +342,26 @@ const ConsultationDetail: React.FC = () => {
                     <article className={styles.card}>
                         <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 유사 FAQ 추천</h3>
                         <div className={styles.faqWrapper}>
-                            {similarFaqs.map((faq) => (
+                            {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
                                 <div key={faq.faq_id} className={styles.faqItem}>
-                                    <p style={{ fontSize: '13px', fontWeight: 600 }}>Q. {faq.question}</p>
+                                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>Q. {faq.question}</p>
                                     <button className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
                                 </div>
-                            ))}
+                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>추천 FAQ가 없습니다.</p>}
                         </div>
                     </article>
                 </aside>
             </div>
 
             {showExitModal && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.exitModal}>
+                <div className={styles.modalOverlay} onClick={() => setShowExitModal(false)}>
+                    <div className={styles.exitModal} onClick={e => e.stopPropagation()}>
                         <div className={styles.modalHeader}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <AlertCircle size={22} color="#E6007E" />
                                 <h2>상담 종료 및 결과 기록</h2>
                             </div>
-                            <button onClick={() => setShowExitModal(false)}><X size={24} color="#666" /></button>
+                            <button onClick={() => setShowExitModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} color="#666" /></button>
                         </div>
                         <div className={styles.modalBody}>
                             <div className={styles.fieldGroup}>

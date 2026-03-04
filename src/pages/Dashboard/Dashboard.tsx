@@ -23,14 +23,10 @@ import { useNavigate } from "react-router-dom";
 
 import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation";
 import { useLocalStorage } from "../../hooks/useLocalStorage"; 
-import { fetchConsultations } from "../../api/services/consultation"; 
+import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from "../../api/services/consultation"; 
 import type { ConsultationResponse } from "../../types/consultation"; 
 import * as styles from "./Style/Dashboard.css.ts";
 
-
-type LocalHistory = ConsultationResponse;
-
-/** [수정] 모달에서 보여줄 상세 내용을 포함하도록 데이터 구조 변경 */
 const NOTICES = [
     { 
         id: 1, 
@@ -67,28 +63,20 @@ const Dashboard: React.FC = () => {
     const [now, setNow] = useState(new Date());
     const [showGuide, setShowGuide] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
-
-    /** [추가] 선택된 공지사항 상태 관리 */
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
-    useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (!token) {
-            alert("보안을 위해 로그인이 필요합니다.");
-            navigate("/", { replace: true });
-        }
-    }, [navigate]); 
-
-    const [realtimeWaitingCount, setRealtimeWaitingCount] = useLocalStorage<number>("realtime_waiting_count", 0); 
-
-    const waitingList = useMemo<CustomerInfo[]>(() => {
-        const list = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
-        return list;
-    }, [realtimeWaitingCount, isQueueModalOpen]); 
+    const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
+    
+    const waitingList = useMemo<(ConsultationResponse | CustomerInfo)[]>(() => {
+        if (apiWaitingList.length > 0) return apiWaitingList;
+        const localData = localStorage.getItem("waitingCustomers");
+        return localData ? (JSON.parse(localData) as CustomerInfo[]) : [];
+    }, [apiWaitingList]); 
 
     const [memo, setMemo] = useLocalStorage<string>("dashboard_memo", "");
     const [notifications, setNotifications] = useLocalStorage("dashboard_notifications", [
@@ -101,25 +89,56 @@ const Dashboard: React.FC = () => {
         return activities.filter(activity => activity.status === 'DONE').length;
     }, [activities]); 
 
+    const loadDashboardData = useCallback(async () => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            const [, , waitingRes] = await Promise.all([
+                fetchConsultations(),
+                fetchWaitingCount(),
+                fetchWaitingConsultations()
+            ]);
+
+            setActivities([]);
+
+            if (Array.isArray(waitingRes)) {
+                setApiWaitingList(waitingRes as ConsultationResponse[]);
+            }
+        } catch (error) {
+            console.error("데이터 로드 실패:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            navigate("/", { replace: true });
+            return;
+        }
+        loadDashboardData();
+        
+        const interval = setInterval(() => {
+            if (localStorage.getItem("token")) loadDashboardData();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [navigate, loadDashboardData]);
+
     const assignNextCustomer = useCallback((currentStatus?: string) => {
         const checkStatus = currentStatus || workStatus;
         if (checkStatus !== "AVAILABLE" || assignedCustomer) return;
 
-        const currentWaiting: CustomerInfo[] = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
-        
-        if (currentWaiting.length > 0) {
-            const nextCustomer = currentWaiting[0];
-            const remaining = currentWaiting.slice(1);
-            
-            localStorage.setItem("waitingCustomers", JSON.stringify(remaining));
-            localStorage.setItem("realtime_waiting_count", remaining.length.toString());
-            
-            setAssignedCustomer(nextCustomer);
-            setRealtimeWaitingCount(remaining.length);
-        } else {
-            setAssignedCustomer(null);
+        if (waitingList.length > 0) {
+            const nextCustomer = waitingList[0];
+            setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
         }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, setRealtimeWaitingCount]); 
+    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList]); 
 
     const handleToggleStatus = useCallback(() => {
         toggleWorkStatus();
@@ -130,27 +149,39 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
+    // 🔥 [수정] any를 완전히 제거하고 타입 가드를 적용했습니다.
     const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
-            const currentWaiting: CustomerInfo[] = JSON.parse(localStorage.getItem("waitingCustomers") || "[]");
+            const localData = localStorage.getItem("waitingCustomers");
+            const currentWaiting: CustomerInfo[] = localData ? JSON.parse(localData) : [];
             const updatedWaiting = currentWaiting.filter(c => c.id !== customerId);
-            
             localStorage.setItem("waitingCustomers", JSON.stringify(updatedWaiting));
-            setRealtimeWaitingCount(updatedWaiting.length);
+            
+            // any 대신 ConsultationResponse 타입을 사용하고 속성 존재 여부를 체크합니다.
+            setApiWaitingList((prev) => 
+                prev.filter((item) => {
+                    const id = 'consultation_id' in item ? item.consultation_id : (item as { id: string | number }).id;
+                    return id !== customerId;
+                })
+            ); 
         }
-    }, [setRealtimeWaitingCount]);
+    }, []);
 
     const handleAcceptConsultation = useCallback(
-        (customer: CustomerInfo) => {
+        (customer: CustomerInfo | ConsultationResponse) => {
+            const name = 'customer_name' in customer ? customer.customer_name : customer.name;
+            const msg = 'content_preview' in customer ? customer.content_preview : (customer as CustomerInfo).inquiryMessage;
+            const id = 'consultation_id' in customer ? customer.consultation_id : customer.id;
+
             localStorage.setItem("isMatched", "true");
             localStorage.setItem("lastInquiry", JSON.stringify({
-                message: customer.inquiryMessage,
-                customerName: customer.name,
+                message: msg,
+                customerName: name,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }));
 
             setAssignedCustomer(null);
-            navigate(`/consultation/${customer.id}`);
+            navigate(`/consultation/${id}`);
         },
         [navigate, setAssignedCustomer],
     ); 
@@ -158,41 +189,6 @@ const Dashboard: React.FC = () => {
     const handleRejectConsultation = useCallback(() => {
         setAssignedCustomer(null);
     }, [setAssignedCustomer]); 
-
-    useEffect(() => {
-        const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === "waitingCustomers") {
-                const newList: CustomerInfo[] = JSON.parse(e.newValue || "[]");
-                setRealtimeWaitingCount(newList.length);
-                if (workStatus === "AVAILABLE" && !assignedCustomer && newList.length > 0) {
-                    assignNextCustomer();
-                }
-            }
-            if (e.key === "realtime_waiting_count") {
-                setRealtimeWaitingCount(Number(e.newValue || "0"));
-            }
-        };
-        window.addEventListener("storage", handleStorageChange);
-        return () => window.removeEventListener("storage", handleStorageChange);
-    }, [workStatus, assignedCustomer, assignNextCustomer, setRealtimeWaitingCount]); 
-
-    useEffect(() => {
-        const loadDashboardData = async () => {
-            try {
-                setIsLoading(true);
-                const apiData: ConsultationResponse[] = await fetchConsultations();
-                const localHistoryRaw = localStorage.getItem("consultationHistory");
-                const localHistory: LocalHistory[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
-                const combinedData: ConsultationResponse[] = [...localHistory, ...apiData];
-                setActivities(combinedData);
-            } catch (error) {
-                console.error("데이터 로드 실패:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        loadDashboardData();
-    }, []); 
 
     const handleNotificationClick = (id: number) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -224,23 +220,23 @@ const Dashboard: React.FC = () => {
         alert("메모가 저장되었습니다!");
     }, [memo]); 
 
-    useEffect(() => {
-        const timer = setInterval(() => setNow(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
     const handleDeleteActivity = useCallback((e: React.MouseEvent, consultationId: string | number) => {
         e.stopPropagation();
         if (window.confirm("이 상담 내역을 삭제하시겠습니까?")) {
             setActivities(prev => prev.filter(item => item.consultation_id !== consultationId));
             const localHistoryRaw = localStorage.getItem("consultationHistory");
             if (localHistoryRaw) {
-                const localHistory: LocalHistory[] = JSON.parse(localHistoryRaw);
+                const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
                 const updatedHistory = localHistory.filter((item) => item.consultation_id !== consultationId);
                 localStorage.setItem("consultationHistory", JSON.stringify(updatedHistory));
             }
         }
     }, []); 
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     return (
         <div className={styles.container}>
@@ -316,7 +312,7 @@ const Dashboard: React.FC = () => {
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
                                 <div>
                                     <span className={styles.statLabel}>실시간 대기</span>
-                                    <div className={styles.statValue}>{realtimeWaitingCount}명</div>
+                                    <div className={styles.statValue}>{waitingList.length}명</div>
                                     <span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span>
                                 </div>
                             </div>
@@ -342,8 +338,8 @@ const Dashboard: React.FC = () => {
                                 {isLoading ? (
                                     <p style={{ padding: "20px", textAlign: "center", color: "#999" }}>데이터 로드 중...</p>
                                 ) : activities.length > 0 ? (
-                                    activities.slice(0, 5).map((log) => (
-                                        <div key={log.consultation_id} style={{ position: 'relative' }}>
+                                    activities.slice(0, 5).map((log, index) => (
+                                        <div key={`activity-${log.consultation_id}-${index}`} style={{ position: 'relative' }}>
                                             <button type="button" className={styles.activityItem} onClick={() => navigate(`/history/${log.consultation_id}`)}>
                                                 <div className={styles.timeTag}>
                                                     {log.channel_type === "CALL" ? <Phone size={18} /> : <MessageSquare size={18} />}
@@ -390,12 +386,10 @@ const Dashboard: React.FC = () => {
                         <section className={styles.glassCard}>
                             <div className={styles.cardHeader}>
                                 <h3 className={styles.cardTitle}><Megaphone size={18} color="#E6007E" /> 공지사항</h3>
-                                {/* 전체보기는 페이지 이동 유지 */}
                                 <button onClick={() => navigate('/notice')} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '12px' }}>전체보기</button>
                             </div>
                             <div className={styles.noticeList}>
                                 {NOTICES.map((notice) => (
-                                    /** [수정] onClick 시 navigate 대신 모달 상태 업데이트 */
                                     <div key={notice.id} className={styles.noticeItem} onClick={() => setSelectedNotice(notice)} style={{ cursor: 'pointer' }}>
                                         <span className={styles.noticeTitle}>{notice.title}</span>
                                         <span className={styles.noticeDate}>{notice.date}</span>
@@ -407,7 +401,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </main>
 
-            {/** [추가] 공지사항 모달 UI */}
             {selectedNotice && (
                 <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
                     <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
@@ -421,12 +414,10 @@ const Dashboard: React.FC = () => {
                         <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
                             {selectedNotice.content}
                         </div>
-                        <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '32px' }} onClick={() => setSelectedNotice(null)}>내용 확인</button>
                     </div>
                 </div>
             )}
 
-            {/* 실시간 대기열 상세 모달 */}
             {isQueueModalOpen && (
                 <div className={styles.modalOverlay} onClick={() => setIsQueueModalOpen(false)}>
                     <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
@@ -450,23 +441,29 @@ const Dashboard: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {waitingList.map((customer, index) => (
-                                            <tr key={customer.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                                                <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
-                                                <td style={{ padding: '12px 5px', fontWeight: 600 }}>{customer.name}</td>
-                                                <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
-                                                    {customer.inquiryMessage.length > 20 ? customer.inquiryMessage.slice(0, 20) + '...' : customer.inquiryMessage}
-                                                </td>
-                                                <td style={{ padding: '12px 5px', textAlign: 'center' }}>
-                                                    <button 
-                                                        onClick={() => handleRemoveWaitingCustomer(customer.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                                                    >
-                                                        <X size={14} color="#FF4D4F" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {waitingList.map((item, index) => {
+                                            const name = 'customer_name' in item ? item.customer_name : item.name;
+                                            const msg = 'content_preview' in item ? item.content_preview : item.inquiryMessage;
+                                            const id = 'consultation_id' in item ? item.consultation_id : item.id;
+
+                                            return (
+                                                <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                                                    <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
+                                                    <td style={{ padding: '12px 5px', fontWeight: 600 }}>{name}</td>
+                                                    <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
+                                                        {(msg || "").length > 20 ? msg?.slice(0, 20) + '...' : msg}
+                                                    </td>
+                                                    <td style={{ padding: '12px 5px', textAlign: 'center' }}>
+                                                        <button 
+                                                            onClick={() => handleRemoveWaitingCustomer(id)}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                                        >
+                                                            <X size={14} color="#FF4D4F" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             ) : (
@@ -487,11 +484,19 @@ const Dashboard: React.FC = () => {
                         <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
                         <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
                         <div className={styles.modalCustomerCard}>
-                            <span className={styles.modalCustomerName}>{assignedCustomer.name} 고객님</span>
+                            <span className={styles.modalCustomerName}>
+                                {'customer_name' in assignedCustomer 
+                                    ? (assignedCustomer as unknown as ConsultationResponse).customer_name 
+                                    : (assignedCustomer as CustomerInfo).name} 고객님
+                            </span>
                             <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px' }}>
-                                <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>"{assignedCustomer.inquiryMessage}"</p>
+                                <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>
+                                    {'content_preview' in assignedCustomer 
+                                        ? (assignedCustomer as unknown as ConsultationResponse).content_preview 
+                                        : (assignedCustomer as CustomerInfo).inquiryMessage}
+                                </p>
                             </div>
-                            <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}><strong>최근 이력:</strong> {assignedCustomer.recentHistory}</p>
+                            <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}><strong>최근 이력:</strong> {assignedCustomer.recentHistory || "내역 없음"}</p>
                         </div>
                         <div className={styles.modalActions}>
                             <button type="button" className={styles.primaryBtn} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
