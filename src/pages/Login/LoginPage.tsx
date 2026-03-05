@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import type { CredentialResponse } from "@react-oauth/google";
 import { authApi } from "../../api/services/auth";
-import { MessageSquare, ArrowRight, UserCircle } from "lucide-react";
+import { MessageSquare, ArrowRight } from "lucide-react"; 
 import axios from "axios";
 
 import * as styles from "./Style/Login.css.ts";
@@ -20,7 +20,6 @@ interface BackendLoginResponse {
   };
 }
 
-// 💡 유저 정보 타입을 정의합니다.
 interface UserInfo {
   name: string;
   email: string;
@@ -49,15 +48,13 @@ const LoginPage: React.FC = () => {
 
         try {
           console.log("📍 [LoginPage] 내 정보 조회(users/me) 시도...");
-          
-          // 💡 [수정] 반환 타입을 UserInfo로 강제 지정하여 'name' 속성 접근 에러를 해결합니다.
           const userInfo = (await authApi.getMe()) as unknown as UserInfo;
           
           const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", realName);
           console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName}`);
         } catch (userError) {
-          console.error("⚠️ [LoginPage] 내 정보 조회 실패, 기본 정보 사용:", userError);
+          console.error(" [LoginPage] 내 정보 조회 실패, 기본 정보 사용:", userError);
           const backupName = response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", backupName);
         }
@@ -77,17 +74,6 @@ const LoginPage: React.FC = () => {
     performLogin();
   }, [isLoggingIn, navigate]);
 
-  /** [추가] 게스트 로그인 핸들러 */
-  const handleGuestLogin = () => {
-    localStorage.setItem("token", "guest_mock_token_uplus_eureka_2026");
-    localStorage.setItem("userName", "게스트"); 
-    localStorage.setItem("userEmail", "guest_view@uplus.co.kr");
-    localStorage.setItem("userDept", "고객케어팀 (데모)");
-    localStorage.setItem("userRank", "체험 계정");
-
-    navigate("/dashboard", { replace: true });
-  };
-
   return (
     <div className={styles.container}>
       <main className={styles.loginCard}>
@@ -100,44 +86,17 @@ const LoginPage: React.FC = () => {
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", gap: "16px", margin: "24px 0" }}>
           {!isLoggingIn ? (
-            <>
-              <div style={{ transform: 'scale(1.05)' }}> 
-                <GoogleLogin
-                  onSuccess={handleLoginSuccess}
-                  onError={() => console.error("로그인 실패")}
-                  useOneTap={false} 
-                  theme="filled_blue"
-                  shape="pill"
-                  width="320"      
-                  text="signin_with" 
-                />
-              </div>
-
-              <button 
-                type="button" 
-                onClick={handleGuestLogin}
-                style={{
-                  width: '320px',
-                  backgroundColor: '#f8f9fa',
-                  border: '1px solid #dee2e6',
-                  padding: '12px',
-                  borderRadius: '100px',
-                  color: '#495057',
-                  fontWeight: 600,
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e9ecef'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              >
-                <UserCircle size={18} /> 로그인 없이 체험하기 (Guest)
-              </button>
-            </>
+            <div style={{ transform: 'scale(1.05)' }}> 
+              <GoogleLogin
+                onSuccess={handleLoginSuccess}
+                onError={() => console.error("로그인 실패")}
+                useOneTap={false} 
+                theme="filled_blue"
+                shape="pill"
+                width="320"      
+                text="signin_with" 
+              />
+            </div>
           ) : (
             <div style={{ padding: '10px', color: '#E6007E', fontWeight: 600 }}>
               인증 정보를 확인 중입니다...

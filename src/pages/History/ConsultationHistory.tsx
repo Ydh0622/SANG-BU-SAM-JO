@@ -36,64 +36,6 @@ interface HistoryData {
     messages: Message[];
 }
 
-/** * [MOCK DATA] 시연을 위한 가짜 데이터베이스
- * 나중에 실제 API 연동 시 이 MOCK_HISTORY_DB 전체를 삭제하세요.
- */
-const MOCK_HISTORY_DB: Record<string, HistoryData> = {
-    "101": {
-        consultation_id: "101",
-        started_at: "2026.02.27 11:20",
-        ended_at: "11:35",
-        duration: "15분",
-        customer_name: "김유플",
-        mask_phone: "010-****-1234",
-        category_display: "요금제 문의",
-        agent_name: "유덕현", 
-        customer_request: "5G 다이렉트 요금제 변경 및 할인 혜택 확인 요청",
-        agent_action: "5G 다이렉트 65 상품 안내 및 변경 접수 완료",
-        summary_text: "5G 다이렉트 요금제로 변경 완료 및 가족 결합 할인 유지 확인됨.",
-        messages: [
-            { id: 1, sender_type_code: "CUSTOMER", content: "5G 다이렉트 요금제로 바꾸고 싶은데 어떻게 되나요?", sent_at: "11:20" },
-            { id: 2, sender_type_code: "AGENT", content: "안녕하세요 김유플 고객님! 5G 다이렉트로 옮기시면 결합 할인이 커져서 유리합니다.", sent_at: "11:22" },
-            { id: 3, sender_type_code: "CUSTOMER", content: "네, 그걸로 변경해 주세요.", sent_at: "11:30" },
-        ],
-    },
-    "102": {
-        consultation_id: "102",
-        started_at: "2026.02.27 10:10",
-        ended_at: "10:25",
-        duration: "15분",
-        customer_name: "이엘지",
-        mask_phone: "010-****-5678",
-        category_display: "기기 결합",
-        agent_name: "유덕현",
-        customer_request: "가족 무한 결합 할인 혜택 및 인터넷 합산 문의",
-        agent_action: "결합 가능한 인터넷 회선 확인 및 예상 할인 금액 산출 안내",
-        summary_text: "인터넷+모바일 3회선 결합 시 월 22,000원 할인 안내 완료.",
-        messages: [
-            { id: 1, sender_type_code: "CUSTOMER", content: "인터넷이랑 결합하면 얼마나 할인되나요?", sent_at: "10:10" },
-            { id: 2, sender_type_code: "AGENT", content: "가족분들 휴대폰 회선 수에 따라 달라집니다. 확인해 드릴까요?", sent_at: "10:12" },
-        ],
-    },
-    "103": {
-        consultation_id: "103",
-        started_at: "2026.02.27 09:40",
-        ended_at: "09:50",
-        duration: "10분",
-        customer_name: "박Eureka",
-        mask_phone: "010-****-9999",
-        category_display: "분실 신고",
-        agent_name: "유덕현",
-        customer_request: "휴대폰 분실로 인한 일시 정지 및 위치 찾기 서비스 문의",
-        agent_action: "분실 정지 즉시 접수 및 위치 정보 확인 방법 안내",
-        summary_text: "분실 정지 처리 완료 및 보상 기변 절차 안내.",
-        messages: [
-            { id: 1, sender_type_code: "CUSTOMER", content: "핸드폰을 잃어버렸어요. 정지 부탁드립니다.", sent_at: "09:40" },
-            { id: 2, sender_type_code: "AGENT", content: "네, 즉시 정지 처리 도와드리겠습니다. 본인 확인 부탁드립니다.", sent_at: "09:42" },
-        ],
-    }
-};
-
 const ConsultationHistory: React.FC = () => {
     const { historyId } = useParams<{ historyId: string }>();
     const navigate = useNavigate();
@@ -107,8 +49,6 @@ const ConsultationHistory: React.FC = () => {
             const savedDB = JSON.parse(savedDBRaw);
             if (savedDB[historyId]) return savedDB[historyId];
         }
-
-        if (MOCK_HISTORY_DB[historyId]) return MOCK_HISTORY_DB[historyId];
 
         return null;
     }, [historyId]);
@@ -143,7 +83,6 @@ const ConsultationHistory: React.FC = () => {
                 <div style={{ display: "flex", gap: "8px" }}>
                     <button 
                         type="button" 
-                        // 에러 방지를 위해 styles.primaryBtn 대신 직접 인라인 스타일 적용
                         style={{
                             display: 'flex',
                             alignItems: 'center',

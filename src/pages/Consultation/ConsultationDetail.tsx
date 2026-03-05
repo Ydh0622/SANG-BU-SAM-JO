@@ -22,6 +22,7 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { AxiosError } from "axios"; // [추가] AxiosError 타입 임포트
 
 import { 
     getConsultationDetail, 
@@ -32,9 +33,10 @@ import { getSimilarFaq } from "../../api/services/faq";
 import type { ConsultationResponse } from "../../types/consultation";
 import * as styles from "./Style/Consultation.css.ts";
 
-/** 이메일 속성을 포함하도록 타입 확장 */
 interface ExtendedConsultationResponse extends ConsultationResponse {
     email?: string;
+    initialMessage?: string; 
+    customerName?: string;   
 }
 
 interface Message {
@@ -51,7 +53,6 @@ interface FaqItem {
     similarity_score: number;
 }
 
-/** [해결] 미사용 정의 해결 및 명확한 응답 타입 정의 */
 interface FaqResponse {
     recommendations: FaqItem[];
 }
@@ -78,8 +79,8 @@ const ConsultationDetail: React.FC = () => {
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
 
-    const [waitingCount] = useState<number>(() => {
-        const count = localStorage.getItem("dashboard_waiting_count") || localStorage.getItem("realtime_waiting_count");
+    const [waitingCount, setWaitingCount] = useState<number>(() => {
+        const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
         return count ? Number(count) : 0;
     });
 
@@ -105,9 +106,8 @@ const ConsultationDetail: React.FC = () => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    /** [해결] any 제거 및 FaqResponse 활용 */
     const fetchSimilarFaqs = useCallback(async (text: string) => {
-        if (!text) return;
+        if (!text || !text.trim()) return;
         try {
             const response = await getSimilarFaq(text) as unknown as FaqResponse | FaqItem[];
             const faqs = Array.isArray(response) ? response : response?.recommendations || [];
@@ -140,18 +140,19 @@ const ConsultationDetail: React.FC = () => {
     useEffect(() => {
         const loadDetail = async () => {
             if (!customerId) return;
+            let actualData: ExtendedConsultationResponse | null = null;
+
             try {
                 setIsLoading(true);
-                // [해결] any 제거를 위한 타입 단언 및 구조 분해
-                const response = await getConsultationDetail(customerId) as { data?: ConsultationResponse } | ConsultationResponse;
-                const actualData = ('data' in response && response.data) ? response.data : (response as ConsultationResponse);
+                const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
+                actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
 
                 setCustomerInfo({
                     ...actualData,
-                    customer_name: customerData?.name || actualData.customer_name || "고객",
+                    customer_name: customerData?.name || actualData.customerName || actualData.customer_name || "고객",
                     contact_info: customerData?.phone || actualData.contact_info || "010-0000-0000",
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
@@ -161,18 +162,38 @@ const ConsultationDetail: React.FC = () => {
                 if (localHistoryRaw) {
                     const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
                     const fallbackData = localHistory.find(item => String(item.consultation_id) === String(customerId));
-                    if (fallbackData) setCustomerInfo(fallbackData as ExtendedConsultationResponse);
-                    else navigate("/dashboard");
+                    if (fallbackData) {
+                        const extendedFallback = fallbackData as ExtendedConsultationResponse;
+                        setCustomerInfo(extendedFallback);
+                        actualData = extendedFallback;
+                    } else navigate("/dashboard");
                 } else {
                     navigate("/dashboard");
                 }
             } finally {
-                const lastInquiry = localStorage.getItem("lastInquiry");
-                if (lastInquiry) {
-                    const parsed = JSON.parse(lastInquiry);
-                    setMessages([{ id: 1, sender: "customer", text: parsed.message, time: parsed.time || "방금 전" }]);
-                    fetchSimilarFaqs(parsed.message);
+                const savedCount = localStorage.getItem("realtime_waiting_count");
+                if (savedCount) setWaitingCount(Number(savedCount));
+
+                const lastInquiryRaw = localStorage.getItem("lastInquiry");
+                let firstMsgText = "상담 신청합니다.";
+
+                if (lastInquiryRaw) {
+                    const parsed = JSON.parse(lastInquiryRaw);
+                    if (parsed.message && parsed.message.trim() !== "") {
+                        firstMsgText = parsed.message;
+                    }
+                } else if (actualData?.initialMessage) {
+                    firstMsgText = actualData.initialMessage;
                 }
+
+                setMessages([{ 
+                    id: Date.now(), 
+                    sender: "customer", 
+                    text: firstMsgText, 
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                }]);
+                
+                fetchSimilarFaqs(firstMsgText);
                 setIsLoading(false);
             }
         };
@@ -201,7 +222,16 @@ const ConsultationDetail: React.FC = () => {
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            await completeConsultation(customerId, record); 
+            // [해결] 백엔드 신규 명세 DTO와 필드명 명시적 매핑
+            const payload = {
+                customer_request: record.customer_request || "요금제 변경 및 서비스 문의",
+                agent_action: record.agent_action || "상담 완료 안내",
+                summary_text: record.summary_text || "내용 요약 없음",
+                issue_type_code: record.issue_type_code || "GENERAL",
+                resolution_code: record.resolution_code || "DONE"
+            };
+
+            await completeConsultation(customerId, payload); 
 
             const existingHistoryRaw = localStorage.getItem("consultationHistory");
             const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
@@ -220,12 +250,23 @@ const ConsultationDetail: React.FC = () => {
             };
 
             localStorage.setItem("consultationHistory", JSON.stringify([newDoneEntry, ...existingHistory]));
-            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer"].forEach(k => localStorage.removeItem(k));
+            
+            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
             
             alert("상담 내역이 저장되었습니다.");
             navigate("/dashboard"); 
-        } catch (error) { 
+        } catch (err) { 
+            // [해결] Unexpected any 경고 해결: AxiosError 타입 캐스팅
+            const error = err as AxiosError<{ message?: string }>;
             console.error("종료 처리 실패:", error); 
+
+            if (error.response?.data) {
+                console.error("서버 응답 상세 (400 에러 원인):", error.response.data);
+                const serverMsg = error.response.data.message || "입력 형식을 확인해주세요.";
+                alert(`저장 실패: ${serverMsg}`);
+            } else {
+                alert("상담 종료 처리 중 오류가 발생했습니다.");
+            }
         }
     };
 
@@ -342,8 +383,8 @@ const ConsultationDetail: React.FC = () => {
                     <article className={styles.card}>
                         <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 유사 FAQ 추천</h3>
                         <div className={styles.faqWrapper}>
-                            {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
-                                <div key={faq.faq_id} className={styles.faqItem}>
+                            {similarFaqs.length > 0 ? similarFaqs.map((faq, index) => (
+                                <div key={`faq-${faq.faq_id || index}`} className={styles.faqItem}>
                                     <p style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>Q. {faq.question}</p>
                                     <button className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
                                 </div>

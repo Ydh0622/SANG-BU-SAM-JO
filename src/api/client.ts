@@ -25,16 +25,11 @@ const setInterceptors = (instance: AxiosInstance) => {
       const token = localStorage.getItem('token'); 
       
       if (config.url?.includes('/auth/google')) {
-        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} (인증 전 요청)`);
         return config;
       }
       
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
-        console.log(`[Auth Header] ${config.headers.Authorization.substring(0, 20)}...`);
-      } else {
-        console.warn(`[API Request] ${config.url} - 토큰이 LocalStorage에 없습니다!`);
       }
       return config;
     },
@@ -44,24 +39,24 @@ const setInterceptors = (instance: AxiosInstance) => {
   // 2. 응답 인터셉터: 데이터 추출 및 공통 에러(401) 처리
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
-      // 💡 [수정] 서버의 공통 응답 구조({ success, data, error })를 고려하여 
-      // 실제 유저 정보가 들어있는 response.data.data를 우선적으로 반환하도록 시도합니다.
-      // 만약 .data.data가 없다면(단순 구조라면) response.data를 반환합니다.
+      // 서버 응답 구조에 따라 데이터 추출 (data.data 또는 data)
       return response.data?.data !== undefined ? response.data.data : response.data;
     },
     async (error) => {
       const originalRequest = error.config;
 
-      console.error(`[API Error] ${error.config?.url}:`, error.response?.status, error.response?.data || error.message);
-
+      // [핵심 수정] 401 에러 발생 시 재발급 로직
+      // originalRequest._retry가 없을 때만 재발급을 시도하여 무한 루프 방지
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
 
         try {
           console.warn("인증 만료 감지: 토큰 재발급(Refresh) 시도 중...");
           
+          // [수정] instance를 사용하여 baseURL(/api)이 적용된 상태로 요청을 보냄
+          // 이렇게 해야 프록시 설정(/api -> 8081)이 올바르게 적용됩니다.
           const res = await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true });
-          // 재발급 시에도 데이터 계층 구조 확인
+          
           const newToken = res.data?.data?.accessToken || res.data?.accessToken;
 
           if (newToken) {
@@ -71,9 +66,11 @@ const setInterceptors = (instance: AxiosInstance) => {
             if (originalRequest.headers) {
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
             }
+            // 원래 시도했던 요청 다시 보내기
             return instance(originalRequest);
           }
         } catch (refreshError) {
+          // 재발급 API 자체가 실패한 경우 (진짜 세션 만료)
           console.error("토큰 재발급 실패: 세션이 완전히 만료되었습니다.");
           localStorage.removeItem('token');
           localStorage.removeItem('userName');
@@ -85,14 +82,8 @@ const setInterceptors = (instance: AxiosInstance) => {
         }
       }
 
-      if (error.response?.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userName');
-        if (window.location.pathname !== '/') {
-          window.location.href = '/'; 
-        }
-      }
-      
+      // [수정] 재발급 시도 중이 아닐 때 발생하는 401 외의 에러는 그대로 reject
+      // 여기서 window.location.href를 무분별하게 호출하면 튕김 현상이 발생함
       return Promise.reject(error);
     }
   );
