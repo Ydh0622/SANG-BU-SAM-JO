@@ -44,9 +44,6 @@ const setInterceptors = (instance: AxiosInstance) => {
   // 2. 응답 인터셉터: 데이터 추출 및 공통 에러(401) 처리
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
-      // 💡 [수정] 서버의 공통 응답 구조({ success, data, error })를 고려하여 
-      // 실제 유저 정보가 들어있는 response.data.data를 우선적으로 반환하도록 시도합니다.
-      // 만약 .data.data가 없다면(단순 구조라면) response.data를 반환합니다.
       return response.data?.data !== undefined ? response.data.data : response.data;
     },
     async (error) => {
