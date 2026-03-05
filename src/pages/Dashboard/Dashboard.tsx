@@ -24,8 +24,25 @@ import { useNavigate } from "react-router-dom";
 import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation";
 import { useLocalStorage } from "../../hooks/useLocalStorage"; 
 import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from "../../api/services/consultation"; 
-import type { ConsultationResponse } from "../../types/consultation"; 
+// import type { ConsultationResponse } from "../../types/consultation";  
 import * as styles from "./Style/Dashboard.css.ts";
+
+// Dashboard.tsx 상단 (import문 아래에 추가)
+
+// 기존 ConsultationResponse가 있다면 이름을 잠시 피해서 확장하거나 직접 수정합니다.
+import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
+
+export interface ConsultationResponse extends BaseResponse {
+    consultationId?: number;     // 백엔드 실제 필드 (카멜 케이스)
+    customerName?: string | null; // 백엔드 실제 필드
+    initialMessage?: string | null;
+    statusCode?: string;
+    priorityCode?: string;
+    productLineCode?: string;
+    channelCode?: string;
+}
+
+
 
 const NOTICES = [
     { 
@@ -167,28 +184,66 @@ const Dashboard: React.FC = () => {
         }
     }, []);
 
-    const handleAcceptConsultation = useCallback(
-        (customer: CustomerInfo | ConsultationResponse) => {
-            const name = 'customer_name' in customer ? customer.customer_name : customer.name;
-            const msg = 'content_preview' in customer ? customer.content_preview : (customer as CustomerInfo).inquiryMessage;
-            const id = 'consultation_id' in customer ? customer.consultation_id : customer.id;
+ const handleAcceptConsultation = useCallback(
+    (customer: CustomerInfo | ConsultationResponse) => {
+        // 1. 타입 캐스팅 (에러 방지를 위해 unknown 거침)
+        const consultation = customer as unknown as ConsultationResponse;
+        const info = customer as unknown as CustomerInfo;
 
-            localStorage.setItem("isMatched", "true");
-            localStorage.setItem("lastInquiry", JSON.stringify({
-                message: msg,
-                customerName: name,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }));
+        // 2. ID 및 기본 정보 추출
+        const id = consultation.consultationId || consultation.consultation_id || info.id;
+        const name = consultation.customerName || consultation.customer_name || info.name || "고객";
+        const msg = consultation.initialMessage || consultation.content_preview || info.inquiryMessage || "상담 신청합니다.";
 
-            setAssignedCustomer(null);
-            navigate(`/consultation/${id}`);
-        },
-        [navigate, setAssignedCustomer],
-    ); 
+        if (!id) {
+            alert("상담 ID가 유효하지 않습니다.");
+            return;
+        }
 
-    const handleRejectConsultation = useCallback(() => {
+        // 🔴 [핵심] 실시간 대기 수 저장
+        // 현재 대시보드 state에 있는 waitingList의 길이를 저장합니다.
+        if (waitingList) {
+            localStorage.setItem("realtime_waiting_count", waitingList.length.toString());
+        }
+
+        // 3. 상담 매칭 상태 및 기본 메시지 저장
+        localStorage.setItem("isMatched", "true");
+        localStorage.setItem("lastInquiry", JSON.stringify({
+            message: msg,
+            customerName: name,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }));
+
+        // 4. 정보가 없는 항목은 기본값으로 채워서 전달 (에러 방지)
+        localStorage.setItem("currentCustomer", JSON.stringify({
+            name: name,
+            phone: "010-****-****", // 정보가 없을 때의 기본값
+            email: "vip_care@uplus.co.kr"
+        }));
+
         setAssignedCustomer(null);
-    }, [setAssignedCustomer]); 
+        
+        // 5. 상세 페이지로 이동
+        navigate(`/consultation/${id}`);
+    },
+    [navigate, setAssignedCustomer, waitingList?.length] // waitingList가 변할 때 함수 갱신
+);
+    const handleRejectConsultation = useCallback(() => {
+    // 1. 현재 배정된 고객 모달을 즉시 닫음
+    setAssignedCustomer(null);
+
+    // 2. 3초 뒤에 다음 대기자를 자동으로 배정
+    setTimeout(() => {
+        // 상담 가능 상태(AVAILABLE)이고 대기열에 다음 사람이 있을 때만 실행
+        if (workStatus === "AVAILABLE" && waitingList.length > 0) {
+            // [해결] unknown을 거쳐 CustomerInfo 형식으로 안전하게 변환 (No-Any)
+            const nextCustomer = waitingList[0] as unknown as CustomerInfo;
+            setAssignedCustomer(nextCustomer);
+        }
+    }, 3000); 
+    
+    // 💡 의존성 배열에 workStatus와 waitingList를 꼭 추가해야 최신 목록을 읽어옵니다.
+}, [workStatus, waitingList, setAssignedCustomer]);
 
     const handleNotificationClick = (id: number) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -442,28 +497,34 @@ const Dashboard: React.FC = () => {
                                     </thead>
                                     <tbody>
                                         {waitingList.map((item, index) => {
-                                            const name = 'customer_name' in item ? item.customer_name : item.name;
-                                            const msg = 'content_preview' in item ? item.content_preview : item.inquiryMessage;
-                                            const id = 'consultation_id' in item ? item.consultation_id : item.id;
+    // 1. 타입 가드를 위해 인터페이스를 구체화하여 참조합니다.
+    const consultation = item as ConsultationResponse;
+    const customer = item as CustomerInfo;
 
-                                            return (
-                                                <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                                                    <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
-                                                    <td style={{ padding: '12px 5px', fontWeight: 600 }}>{name}</td>
-                                                    <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
-                                                        {(msg || "").length > 20 ? msg?.slice(0, 20) + '...' : msg}
-                                                    </td>
-                                                    <td style={{ padding: '12px 5px', textAlign: 'center' }}>
-                                                        <button 
-                                                            onClick={() => handleRemoveWaitingCustomer(id)}
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                                                        >
-                                                            <X size={14} color="#FF4D4F" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+    // 2. 백엔드 JSON 구조(customerName, initialMessage)에 맞춰 우선순위 변수 할당
+    // 백엔드에서 주는 '이영희' 데이터를 정확히 가져옵니다.
+    const name = consultation.customerName || consultation.customer_name || customer.name || "이름 없음";
+    const msg = consultation.initialMessage || consultation.content_preview || customer.inquiryMessage || "내용 없음";
+    const id = consultation.consultationId || consultation.consultation_id || customer.id;
+
+    return (
+        <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
+            <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
+            <td style={{ padding: '12px 5px', fontWeight: 600 }}>{name}</td> 
+            <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
+                {(msg || "").length > 20 ? (msg || "").slice(0, 20) + '...' : msg}
+            </td>
+            <td style={{ padding: '12px 5px', textAlign: 'center' }}>
+                <button 
+                    onClick={() => handleRemoveWaitingCustomer(id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                >
+                    <X size={14} color="#FF4D4F" />
+                </button>
+            </td>
+        </tr>
+    );
+})}
                                     </tbody>
                                 </table>
                             ) : (
@@ -478,33 +539,57 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {assignedCustomer && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.premiumModal}>
-                        <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
-                        <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
-                        <div className={styles.modalCustomerCard}>
-                            <span className={styles.modalCustomerName}>
-                                {'customer_name' in assignedCustomer 
-                                    ? (assignedCustomer as unknown as ConsultationResponse).customer_name 
-                                    : (assignedCustomer as CustomerInfo).name} 고객님
-                            </span>
-                            <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px' }}>
-                                <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>
-                                    {'content_preview' in assignedCustomer 
-                                        ? (assignedCustomer as unknown as ConsultationResponse).content_preview 
-                                        : (assignedCustomer as CustomerInfo).inquiryMessage}
-                                </p>
-                            </div>
-                            <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}><strong>최근 이력:</strong> {assignedCustomer.recentHistory || "내역 없음"}</p>
-                        </div>
-                        <div className={styles.modalActions}>
-                            <button type="button" className={styles.primaryBtn} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
-                            <button type="button" className={styles.secondaryBtn} onClick={handleRejectConsultation}>거절</button>
-                        </div>
+            {/* 새로운 상담 배정 알림 모달 내부 */}
+{assignedCustomer && (() => {
+    // any 없이 타입을 안전하게 세탁 (unknown 활용)
+    const consultation = assignedCustomer as unknown as ConsultationResponse;
+    const customer = assignedCustomer as unknown as CustomerInfo;
+
+    // 필드 우선순위 결정
+    const name = consultation.customerName || consultation.customer_name || customer.name || "이름 없음";
+    const msg = consultation.initialMessage || consultation.content_preview || customer.inquiryMessage || "내용 없음";
+    
+    // recentHistory 접근 시에도 타입 안정성 확보
+    const history = (assignedCustomer as unknown as { recentHistory?: string }).recentHistory || "내역 없음";
+
+    return (
+        <div className={styles.modalOverlay}>
+            <div className={styles.premiumModal}>
+                <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
+                <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
+                <div className={styles.modalCustomerCard}>
+                    <span className={styles.modalCustomerName}>
+                        {name} 고객님
+                    </span>
+                    <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px' }}>
+                        <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>
+                            {msg}
+                        </p>
                     </div>
+                    <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}>
+                        <strong>최근 이력:</strong> {history}
+                    </p>
                 </div>
-            )}
+                <div className={styles.modalActions}>
+                    <button 
+                        type="button" 
+                        className={styles.primaryBtn} 
+                        onClick={() => handleAcceptConsultation(assignedCustomer)}
+                    >
+                        상담 시작
+                    </button>
+                    <button 
+                        type="button" 
+                        className={styles.secondaryBtn} 
+                        onClick={handleRejectConsultation}
+                    >
+                        거절
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+})()}
 
             {showGuide && (
                 <div className={styles.modalOverlay}>
