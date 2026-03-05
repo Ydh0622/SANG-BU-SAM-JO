@@ -27,8 +27,6 @@ import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from
 // import type { ConsultationResponse } from "../../types/consultation";  
 import * as styles from "./Style/Dashboard.css.ts";
 
-// Dashboard.tsx 상단 (import문 아래에 추가)
-
 // 기존 ConsultationResponse가 있다면 이름을 잠시 피해서 확장하거나 직접 수정합니다.
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
 
@@ -166,7 +164,7 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
-    // 🔥 [수정] any를 완전히 제거하고 타입 가드를 적용했습니다.
+
     const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
             const localData = localStorage.getItem("waitingCustomers");
@@ -200,7 +198,7 @@ const Dashboard: React.FC = () => {
             return;
         }
 
-        // 🔴 [핵심] 실시간 대기 수 저장
+        
         // 현재 대시보드 state에 있는 waitingList의 길이를 저장합니다.
         if (waitingList) {
             localStorage.setItem("realtime_waiting_count", waitingList.length.toString());
@@ -236,13 +234,12 @@ const Dashboard: React.FC = () => {
     setTimeout(() => {
         // 상담 가능 상태(AVAILABLE)이고 대기열에 다음 사람이 있을 때만 실행
         if (workStatus === "AVAILABLE" && waitingList.length > 0) {
-            // [해결] unknown을 거쳐 CustomerInfo 형식으로 안전하게 변환 (No-Any)
             const nextCustomer = waitingList[0] as unknown as CustomerInfo;
             setAssignedCustomer(nextCustomer);
         }
     }, 3000); 
     
-    // 💡 의존성 배열에 workStatus와 waitingList를 꼭 추가해야 최신 목록을 읽어옵니다.
+   
 }, [workStatus, waitingList, setAssignedCustomer]);
 
     const handleNotificationClick = (id: number) => {
