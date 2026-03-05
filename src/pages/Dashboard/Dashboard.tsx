@@ -182,49 +182,49 @@ const Dashboard: React.FC = () => {
         }
     }, []);
 
- const handleAcceptConsultation = useCallback(
+const handleAcceptConsultation = useCallback(
     (customer: CustomerInfo | ConsultationResponse) => {
-        // 1. 타입 캐스팅 (에러 방지를 위해 unknown 거침)
+        // 1. 타입 캐스팅 (확장된 인터페이스를 사용하여 속성 접근 허용)
         const consultation = customer as unknown as ConsultationResponse;
         const info = customer as unknown as CustomerInfo;
 
-        // 2. ID 및 기본 정보 추출
+        // 2. ID 및 기본 정보 추출 (우선순위: 백엔드 카멜케이스 > 스네이크케이스 > 로컬데이터)
         const id = consultation.consultationId || consultation.consultation_id || info.id;
         const name = consultation.customerName || consultation.customer_name || info.name || "고객";
         const msg = consultation.initialMessage || consultation.content_preview || info.inquiryMessage || "상담 신청합니다.";
+        
 
         if (!id) {
             alert("상담 ID가 유효하지 않습니다.");
             return;
         }
 
-        
-        // 현재 대시보드 state에 있는 waitingList의 길이를 저장합니다.
+        // 3. [데이터 전달] 실시간 대기 수 저장
+        // 상세 페이지에서 'realtime_waiting_count' 키로 읽어갑니다.
         if (waitingList) {
             localStorage.setItem("realtime_waiting_count", waitingList.length.toString());
         }
 
-        // 3. 상담 매칭 상태 및 기본 메시지 저장
+        // 4. [데이터 전달] 상담 매칭 상태 및 채팅 첫 메시지 저장
         localStorage.setItem("isMatched", "true");
         localStorage.setItem("lastInquiry", JSON.stringify({
             message: msg,
-            customerName: name,
+            customerName: name, // 상세 페이지 상단 이름 연동용
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }));
 
-        // 4. 정보가 없는 항목은 기본값으로 채워서 전달 (에러 방지)
+        // 5. [데이터 전달] 상세 페이지 좌측 '고객 정보' 카드용 데이터
+        // 🔴 상세 페이지의 'customer_name'에 이 'name'이 할당됩니다.
         localStorage.setItem("currentCustomer", JSON.stringify({
             name: name,
-            phone: "010-****-****", // 정보가 없을 때의 기본값
-            email: "vip_care@uplus.co.kr"
         }));
 
+        // 6. 상태 초기화 및 페이지 이동
         setAssignedCustomer(null);
-        
-        // 5. 상세 페이지로 이동
         navigate(`/consultation/${id}`);
     },
-    [navigate, setAssignedCustomer, waitingList?.length] // waitingList가 변할 때 함수 갱신
+    // waitingList.length를 넣어줘야 숫자가 바뀔 때마다 함수가 최신 숫자를 기억합니다.
+    [navigate, setAssignedCustomer, waitingList?.length]
 );
     const handleRejectConsultation = useCallback(() => {
     // 1. 현재 배정된 고객 모달을 즉시 닫음

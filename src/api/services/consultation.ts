@@ -58,7 +58,7 @@ export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
         return []; 
     } catch (error) {
         console.error("상담 목록 로드 실패:", error);
-        throw error; // 에러 처리를 호출부로 위임
+        throw error; 
     }
 };
 
@@ -119,6 +119,8 @@ export const acceptConsultation = (consultId: string | number) =>
 export const sendConsultationMessage = (consultId: string, message: string) => 
     apiStore.post(`/v1/consultations/${consultId}/messages`, { message });
 
-/** 상담 종료 및 기록 저장 */
-export const completeConsultation = (consultId: string, data: ConsultationCompleteRequest) => 
-    apiStore.post(`/v1/consultations/${consultId}/end`, data);
+/** * [수정됨] 상담 종료 및 기록 저장 
+ * 백엔드 통계 반영을 위해 /complete 엔드포인트로 연동합니다.
+ */
+export const completeConsultation = (consultId: string | number, data: ConsultationCompleteRequest) => 
+    apiStore.post(`/v1/consultations/${consultId}/complete`, data);

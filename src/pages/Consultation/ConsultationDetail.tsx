@@ -22,6 +22,7 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { AxiosError } from "axios"; // [추가] AxiosError 타입 임포트
 
 import { 
     getConsultationDetail, 
@@ -52,7 +53,6 @@ interface FaqItem {
     similarity_score: number;
 }
 
-/** 명확한 응답 타입 정의 */
 interface FaqResponse {
     recommendations: FaqItem[];
 }
@@ -79,7 +79,6 @@ const ConsultationDetail: React.FC = () => {
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
 
-    
     const [waitingCount, setWaitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
         return count ? Number(count) : 0;
@@ -148,7 +147,6 @@ const ConsultationDetail: React.FC = () => {
                 const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
                 actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
 
-                
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
 
@@ -173,11 +171,9 @@ const ConsultationDetail: React.FC = () => {
                     navigate("/dashboard");
                 }
             } finally {
-              
                 const savedCount = localStorage.getItem("realtime_waiting_count");
                 if (savedCount) setWaitingCount(Number(savedCount));
 
-             
                 const lastInquiryRaw = localStorage.getItem("lastInquiry");
                 let firstMsgText = "상담 신청합니다.";
 
@@ -226,7 +222,16 @@ const ConsultationDetail: React.FC = () => {
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            await completeConsultation(customerId, record); 
+            // [해결] 백엔드 신규 명세 DTO와 필드명 명시적 매핑
+            const payload = {
+                customer_request: record.customer_request || "요금제 변경 및 서비스 문의",
+                agent_action: record.agent_action || "상담 완료 안내",
+                summary_text: record.summary_text || "내용 요약 없음",
+                issue_type_code: record.issue_type_code || "GENERAL",
+                resolution_code: record.resolution_code || "DONE"
+            };
+
+            await completeConsultation(customerId, payload); 
 
             const existingHistoryRaw = localStorage.getItem("consultationHistory");
             const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
@@ -246,13 +251,22 @@ const ConsultationDetail: React.FC = () => {
 
             localStorage.setItem("consultationHistory", JSON.stringify([newDoneEntry, ...existingHistory]));
             
-            
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
             
             alert("상담 내역이 저장되었습니다.");
             navigate("/dashboard"); 
-        } catch (error) { 
+        } catch (err) { 
+            // [해결] Unexpected any 경고 해결: AxiosError 타입 캐스팅
+            const error = err as AxiosError<{ message?: string }>;
             console.error("종료 처리 실패:", error); 
+
+            if (error.response?.data) {
+                console.error("서버 응답 상세 (400 에러 원인):", error.response.data);
+                const serverMsg = error.response.data.message || "입력 형식을 확인해주세요.";
+                alert(`저장 실패: ${serverMsg}`);
+            } else {
+                alert("상담 종료 처리 중 오류가 발생했습니다.");
+            }
         }
     };
 
