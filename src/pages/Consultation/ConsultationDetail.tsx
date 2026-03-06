@@ -12,7 +12,7 @@ import {
     Tag,
     User,
     Users,
-    Search, 
+    Search,
     ArrowLeft,
     AlertCircle,
     CheckCircle,
@@ -22,21 +22,22 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AxiosError } from "axios"; // [추가] AxiosError 타입 임포트
+import { AxiosError } from "axios";
 
-import { 
-    getConsultationDetail, 
-    sendConsultationMessage, 
-    completeConsultation 
+import {
+    getConsultationDetail,
+    sendConsultationMessage,
+    completeConsultation,
+    assignConsultation
 } from "../../api/services/consultation";
-import { getSimilarFaq } from "../../api/services/faq"; 
+import { getSimilarFaq } from "../../api/services/faq";
 import type { ConsultationResponse } from "../../types/consultation";
 import * as styles from "./Style/Consultation.css.ts";
 
 interface ExtendedConsultationResponse extends ConsultationResponse {
     email?: string;
-    initialMessage?: string; 
-    customerName?: string;   
+    initialMessage?: string;
+    customerName?: string;
 }
 
 interface Message {
@@ -73,7 +74,7 @@ const ConsultationDetail: React.FC = () => {
     const [isPhoneVisible, setIsPhoneVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [customerInfo, setCustomerInfo] = useState<ExtendedConsultationResponse | null>(null);
-    const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]); 
+    const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]);
 
     const [isTyping, setIsTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
@@ -87,7 +88,7 @@ const ConsultationDetail: React.FC = () => {
     const [record, setRecord] = useState<ConsultationRecord>({
         customer_request: "요금제 변경 및 가족 결합 할인 적용 요청",
         agent_action: "본인 확인 후 결합 해지 사유 설명 및 재결합 안내",
-        summary_text: "고객이 기존 결합 해지 후 재결합 과정에서 발생한 위약금 소급 적용을 요청함. 가이드에 따라 처리 완료함.", 
+        summary_text: "고객이 기존 결합 해지 후 재결합 과정에서 발생한 위약금 소급 적용을 요청함. 가이드에 따라 처리 완료함.",
         issue_type_code: "BILL_INQUIRY",
         resolution_code: "DONE",
     });
@@ -112,8 +113,8 @@ const ConsultationDetail: React.FC = () => {
             const response = await getSimilarFaq(text) as unknown as FaqResponse | FaqItem[];
             const faqs = Array.isArray(response) ? response : response?.recommendations || [];
             setSimilarFaqs(faqs);
-        } catch (error) { 
-            console.error("FAQ 로드 실패:", error); 
+        } catch (error) {
+            console.error("FAQ 로드 실패:", error);
         }
     }, []);
 
@@ -121,9 +122,8 @@ const ConsultationDetail: React.FC = () => {
         if (messages.length === 0) return;
         try {
             const customerName = customerInfo?.customer_name || "Unknown";
-            const title = `=== LG U+ 상담 기록 (고객: ${customerName}) ===\n`;
             const chatLogs = messages.map(m => `[${m.time}] ${m.sender.toUpperCase()}: ${m.text}`).join('\n');
-            const blob = new Blob([title + chatLogs], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([`=== LG U+ 상담 기록 (고객: ${customerName}) ===\n${chatLogs}`], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -132,13 +132,13 @@ const ConsultationDetail: React.FC = () => {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
-        } catch (error) { 
-            console.error("파일 다운로드 실패:", error); 
+        } catch (error) {
+            console.error("파일 다운로드 실패:", error);
         }
     }, [messages, customerInfo]);
 
     useEffect(() => {
-        const loadDetail = async () => {
+        const loadDetailAndAssign = async () => {
             if (!customerId) return;
             let actualData: ExtendedConsultationResponse | null = null;
 
@@ -146,6 +146,15 @@ const ConsultationDetail: React.FC = () => {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
                 actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
+
+                try {
+                    await assignConsultation(customerId);
+                } catch (assignErr) {
+                    const axiosErr = assignErr as AxiosError;
+                    if (axiosErr.response?.status !== 409) {
+                        console.warn("배정 API 확인 필요:", axiosErr.message);
+                    }
+                }
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
@@ -156,117 +165,76 @@ const ConsultationDetail: React.FC = () => {
                     contact_info: customerData?.phone || actualData.contact_info || "010-0000-0000",
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
-            } catch (error) {
-                console.warn("데이터 로드 실패, 로컬 데이터 확인", error);
-                const localHistoryRaw = localStorage.getItem("consultationHistory");
-                if (localHistoryRaw) {
-                    const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
-                    const fallbackData = localHistory.find(item => String(item.consultation_id) === String(customerId));
-                    if (fallbackData) {
-                        const extendedFallback = fallbackData as ExtendedConsultationResponse;
-                        setCustomerInfo(extendedFallback);
-                        actualData = extendedFallback;
-                    } else navigate("/dashboard");
-                } else {
-                    navigate("/dashboard");
-                }
-            } finally {
+
                 const savedCount = localStorage.getItem("realtime_waiting_count");
-                if (savedCount) setWaitingCount(Number(savedCount));
+                if (savedCount) {
+                    setWaitingCount(Number(savedCount));
+                }
 
                 const lastInquiryRaw = localStorage.getItem("lastInquiry");
-                let firstMsgText = "상담 신청합니다.";
-
+                let firstMsgText = actualData.initialMessage || "상담 신청합니다.";
                 if (lastInquiryRaw) {
                     const parsed = JSON.parse(lastInquiryRaw);
-                    if (parsed.message && parsed.message.trim() !== "") {
-                        firstMsgText = parsed.message;
-                    }
-                } else if (actualData?.initialMessage) {
-                    firstMsgText = actualData.initialMessage;
+                    if (parsed.message?.trim()) firstMsgText = parsed.message;
                 }
 
-                setMessages([{ 
-                    id: Date.now(), 
-                    sender: "customer", 
-                    text: firstMsgText, 
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                setMessages([{
+                    id: Date.now(),
+                    sender: "customer",
+                    text: firstMsgText,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }]);
-                
+
                 fetchSimilarFaqs(firstMsgText);
+            } catch (error) {
+                console.error("데이터 로드 실패:", error);
+                navigate("/dashboard");
+            } finally {
                 setIsLoading(false);
             }
         };
-        loadDetail();
+        loadDetailAndAssign();
     }, [customerId, fetchSimilarFaqs, navigate]);
 
     const handleSend = useCallback(async () => {
         if (!inputValue.trim() || !customerId) return;
-        
         const textToSend = inputValue;
-        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const messageId = Date.now();
-        
         setInputValue("");
-        setMessages((prev) => [...prev, { id: messageId, sender: "agent", text: textToSend, time: now }]);
+        setMessages((prev) => [...prev, { id: Date.now(), sender: "agent", text: textToSend, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
 
         try {
             await sendConsultationMessage(customerId, textToSend);
             setIsTyping(true);
             setTimeout(() => setIsTyping(false), 1500);
         } catch (error) {
-            console.warn("메시지 서버 전송 실패:", error);
+            console.warn("메시지 전송 실패:", error);
         }
     }, [inputValue, customerId]);
 
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            // [해결] 백엔드 신규 명세 DTO와 필드명 명시적 매핑
+            setShowExitModal(false);
+            setIsLoading(true);
+
             const payload = {
-                customer_request: record.customer_request || "요금제 변경 및 서비스 문의",
-                agent_action: record.agent_action || "상담 완료 안내",
-                summary_text: record.summary_text || "내용 요약 없음",
-                issue_type_code: record.issue_type_code || "GENERAL",
-                resolution_code: record.resolution_code || "DONE"
+                customer_request: record.customer_request,
+                agent_action: record.agent_action,
+                summary_text: record.summary_text,
+                issue_type_code: record.issue_type_code,
+                resolution_code: "DONE"
             };
 
-            await completeConsultation(customerId, payload); 
+            await completeConsultation(customerId, payload);
 
-            const existingHistoryRaw = localStorage.getItem("consultationHistory");
-            const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
-            
-            const newDoneEntry: ConsultationResponse = {
-                consultation_id: Number(customerId) || Date.now(), 
-                customer_name: customerInfo?.customer_name || "알 수 없는 고객",
-                contact_info: customerInfo?.contact_info || "정보 없음",
-                category: "채팅상담", 
-                issue_detail: record.issue_type_code === "BILL_INQUIRY" ? "요금/결합 할인" : "일반 문의",
-                content_preview: record.summary_text,
-                status: "DONE",
-                priority: customerInfo?.priority || "MID", 
-                channel_type: "CHAT",
-                created_at: new Date().toISOString()
-            };
-
-            localStorage.setItem("consultationHistory", JSON.stringify([newDoneEntry, ...existingHistory]));
-            
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
-            
-            alert("상담 내역이 저장되었습니다.");
-            navigate("/dashboard"); 
-        } catch (err) { 
-            // [해결] Unexpected any 경고 해결: AxiosError 타입 캐스팅
-            const error = err as AxiosError<{ message?: string }>;
-            console.error("종료 처리 실패:", error); 
 
-            if (error.response?.data) {
-                console.error("서버 응답 상세 (400 에러 원인):", error.response.data);
-                const serverMsg = error.response.data.message || "입력 형식을 확인해주세요.";
-                alert(`저장 실패: ${serverMsg}`);
-            } else {
-                alert("상담 종료 처리 중 오류가 발생했습니다.");
-            }
+            navigate("/dashboard", { replace: true });
+
+        } catch (err) {
+            setIsLoading(false);
+            const error = err as AxiosError<{ message?: string }>;
+            alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
         }
     };
 
@@ -274,7 +242,7 @@ const ConsultationDetail: React.FC = () => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages, isTyping]);
 
-    if (isLoading) return <div className={styles.loadingContainer}>상담 정보를 불러오는 중입니다...</div>;
+    if (isLoading) return <div className={styles.loadingContainer}>처리 중입니다...</div>;
 
     return (
         <div className={styles.container}>
@@ -330,7 +298,7 @@ const ConsultationDetail: React.FC = () => {
                             onChange={(e) => setRecord({ ...record, summary_text: e.target.value })}
                         />
                         <div className={styles.aiGlowText}>
-                           <Sparkles size={12} color="#E6007E" /> 실시간 상담 문맥 분석 및 기록 중
+                            <Sparkles size={12} color="#E6007E" /> 실시간 분석 중
                         </div>
                     </article>
                 </aside>
@@ -364,7 +332,7 @@ const ConsultationDetail: React.FC = () => {
                         </div>
                         <div className={styles.inputArea}>
                             <input
-                                className={styles.input} 
+                                className={styles.input}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
@@ -386,7 +354,7 @@ const ConsultationDetail: React.FC = () => {
                             {similarFaqs.length > 0 ? similarFaqs.map((faq, index) => (
                                 <div key={`faq-${faq.faq_id || index}`} className={styles.faqItem}>
                                     <p style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>Q. {faq.question}</p>
-                                    <button className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
+                                    <button type="button" className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
                                 </div>
                             )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>추천 FAQ가 없습니다.</p>}
                         </div>
