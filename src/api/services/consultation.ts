@@ -6,7 +6,6 @@ import type { AxiosResponse } from 'axios';
  * [상부상조] 상담 관련 API 서비스
  */
 
-
 export interface ConsultationApiResponse {
     success: boolean;
     data: {
@@ -105,6 +104,10 @@ export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[
         return [];
     }
 };
+
+/**  [DELETE] 대기 상담 제거  */
+export const deleteWaitingConsultation = (consultationId: string | number) => 
+    apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
 
 /** 다음 대기 고객 배정 요청 */
 export const claimNextCustomer = () => 

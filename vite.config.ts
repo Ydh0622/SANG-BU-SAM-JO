@@ -22,7 +22,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/admin": {
+      "//api/v1/admin": {
         target: "http://localhost:8082",
         changeOrigin: true,
         secure: false,

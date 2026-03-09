@@ -22,10 +22,16 @@ import { useNavigate } from "react-router-dom";
 
 import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation";
 import { useLocalStorage } from "../../hooks/useLocalStorage"; 
-import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from "../../api/services/consultation"; 
+import { 
+    fetchConsultations, 
+    fetchWaitingCount, 
+    fetchWaitingConsultations,
+    deleteWaitingConsultation
+} from "../../api/services/consultation"; 
 import * as styles from "./Style/Dashboard.css.ts";
 
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
+
 
 // --- 인터페이스 정의 ---
 export interface ConsultationResponse extends Omit<BaseResponse, 'created_at' | 'updated_at' | 'customer_name' | 'consultation_id' | 'content_preview' | 'status'> {
@@ -98,10 +104,8 @@ const Dashboard: React.FC = () => {
 
    
     const completedCount = useMemo(() => {
-        // 1. 서버에서 받은 숫자가 0보다 크면 그 숫자를 즉시 사용 (예: 3)
         if (todayDoneCountFromServer > 0) return todayDoneCountFromServer;
 
-        // 2. 숫자가 0일 때만 리스트에서 수동으로 계산 (Fallback)
         const todayStr = new Date().toLocaleDateString('en-CA'); 
         return activities.filter(activity => {
             const status = String(activity.status || activity.statusCode || "").trim().toUpperCase();
@@ -113,9 +117,6 @@ const Dashboard: React.FC = () => {
         }).length;
     }, [activities, todayDoneCountFromServer]); 
 
-    /**
-     *  API 데이터를 불러와서 todayDoneCount를 상태에 매핑
-     */
     const loadDashboardData = useCallback(async () => {
         const token = localStorage.getItem("token");
         if (!token) return;
@@ -127,19 +128,16 @@ const Dashboard: React.FC = () => {
                 fetchWaitingConsultations()
             ]);
 
-            //  네트워크 응답 구조 {"success": true, "data": {"todayDoneCount": 3}}
             if (consultationsRes && typeof consultationsRes === 'object') {
                 const res = consultationsRes as unknown as { 
                     success: boolean; 
                     data?: { todayDoneCount?: number; list?: ConsultationResponse[] } 
                 };
                 
-                // 1. 서버 응답의 data.todayDoneCount 값을 상태에 저장
                 if (res.data && typeof res.data.todayDoneCount === 'number') {
                     setTodayDoneCountFromServer(res.data.todayDoneCount);
                 }
                 
-                // 2. 리스트 데이터 업데이트
                 const list = Array.isArray(res.data?.list) ? res.data!.list! : (Array.isArray(consultationsRes) ? (consultationsRes as ConsultationResponse[]) : []);
                 setActivities([...list]);
             }
@@ -152,9 +150,6 @@ const Dashboard: React.FC = () => {
         }
     }, []);
 
-    /**
-     * useEffect 경고 해결: 비동기 호출을 명확히 분리
-     */
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -162,13 +157,11 @@ const Dashboard: React.FC = () => {
             return;
         }
         
-        // 초기 로드: 비동기 래퍼로 감싸서 cascading renders 경고 해결
         const init = async () => {
             await loadDashboardData();
         };
         init();
         
-        // 3초 주기 갱신
         const interval = setInterval(() => {
             if (localStorage.getItem("token")) {
                 loadDashboardData();
@@ -194,16 +187,30 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
-    const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
+    /** API 연동 추가: 대기열에서 실제 삭제 처리 */
+    const handleRemoveWaitingCustomer = useCallback(async (customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
-            setApiWaitingList((prev) => 
-                prev.filter((item) => {
-                    const id = item.consultationId || item.consultation_id || (item as unknown as { id: string | number }).id;
-                    return id !== customerId;
-                })
-            ); 
+            try {
+                // 1. 서버 API 호출
+                await deleteWaitingConsultation(customerId);
+
+                // 2. 로컬 상태 업데이트 (화면에서 즉시 제거)
+                setApiWaitingList((prev) => 
+                    prev.filter((item) => {
+                        const id = item.consultationId || item.consultation_id || (item as unknown as { id: string | number }).id;
+                        return id !== customerId;
+                    })
+                ); 
+
+                // 3. 전체 데이터 갱신 (카운트 등 동기화)
+                await loadDashboardData();
+                alert("성공적으로 제거되었습니다.");
+            } catch (error) {
+                console.error("제거 실패:", error);
+                alert("제거 처리 중 오류가 발생했습니다. 권한을 확인해주세요.");
+            }
         }
-    }, []);
+    }, [loadDashboardData]);
 
     const handleAcceptConsultation = useCallback(
         (customer: CustomerInfo | ConsultationResponse) => {
@@ -319,32 +326,32 @@ const Dashboard: React.FC = () => {
                                 <div><span className={styles.statLabel}>나의 성과</span><div className={styles.statValue}>보기</div></div>
                             </div>
                         </div>
-<section className={styles.glassCard}>
-    <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
-        <button 
-            type="button"
-            onClick={() => navigate('/search')} 
-            style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: '#E6007E',      
-                cursor: 'pointer', 
-                fontSize: '14px',      
-                fontWeight: 700,       
-                padding: '4px 0',
-                letterSpacing: '-0.3px'
-            }}
-        >
-            전체보기
-        </button>
-    </div>
-    <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
-        <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
-    </div>
-</section>
-                     
+
+                        <section className={styles.glassCard}>
+                            <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
+                                <button 
+                                    type="button"
+                                    onClick={() => navigate('/search')} 
+                                    style={{ 
+                                        background: 'none', 
+                                        border: 'none', 
+                                        color: '#E6007E',      
+                                        cursor: 'pointer', 
+                                        fontSize: '14px',      
+                                        fontWeight: 700,       
+                                        padding: '4px 0',
+                                        letterSpacing: '-0.3px'
+                                    }}
+                                >
+                                    전체보기
+                                </button>
+                            </div>
+                            <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+                                <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
+                            </div>
+                        </section>
                     </div>
 
                     <aside className={styles.mainContentRight}>
