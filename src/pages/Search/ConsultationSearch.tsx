@@ -18,11 +18,12 @@ import {
 import type React from "react";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchConsultations } from "../../api/services/consultation";
-import type { ConsultationResponse } from "../../types/consultation";
+
+import { fetchSearchList } from "../../api/services/search";
+import type { ApiConsultationItem, SearchApiResponse } from "../../api/services/search";
 import * as styles from "./Style/Search.css.ts";
 
-/** 검색 결과 인터페이스 */
+/** 검색 결과 인터페이스*/
 interface SearchResult {
     id: string;
     date: string;
@@ -35,12 +36,6 @@ interface SearchResult {
     process_status: "COMPLETED" | "PENDING" | "TRANSFERRED";
 }
 
-interface LocalHistoryItem extends ConsultationResponse {
-    customerId?: number;
-    initialMessage?: string;
-    productLineCode?: string;
-}
-
 const ConsultationSearch: React.FC = () => {
     const navigate = useNavigate();
     const dateInputRef = useRef<HTMLInputElement>(null);
@@ -51,47 +46,42 @@ const ConsultationSearch: React.FC = () => {
     const [allResults, setAllResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    /** 데이터 로드 로직 */
+    /**  데이터 로드 로직 - search.ts의 fetchSearchList 사용 */
     const loadSearchData = useCallback(async () => {
         try {
             setIsLoading(true);
-            const apiRes = await fetchConsultations();
+            
+            const response: SearchApiResponse = await fetchSearchList();
+            
             const currentAgentName = localStorage.getItem("userName") || "상담원";
+            const currentAgentId = Number(localStorage.getItem("userId") || 1); 
             
-            // 1. API 데이터 변환 (방어 코드 적용)
-            const convertedApi: SearchResult[] = (apiRes || []).map((item) => ({
-                id: String(item.consultation_id || ""),
-                date: new Date(item.created_at || Date.now()).toLocaleDateString(),
-                customer: item.customer_name || "이름 없음",
-                category: item.category || "일반상담",
-                summary: item.content_preview || item.issue_detail || "내용 없음",
-                agent: currentAgentName,
-                is_mine: true,
-                is_repeat: false,
-                process_status: item.status === "DONE" ? "COMPLETED" : "PENDING"
+            // 2. API 데이터 변환
+            const apiList = response && response.success && Array.isArray(response.data) ? response.data : [];
+
+            const convertedApi: SearchResult[] = apiList.map((item: ApiConsultationItem) => ({
+                id: String(item.consultationId),
+                date: item.endedAt 
+                    ? new Date(item.endedAt).toLocaleDateString() 
+                    : item.startedAt 
+                        ? new Date(item.startedAt).toLocaleDateString() 
+                        : new Date().toLocaleDateString(),
+                customer: item.customerName || "이름 없음",
+                category: item.consultationCategory || "일반상담",
+                summary: item.summaryText || "상담 기록이 아직 없습니다.",
+                agent: item.agentId === currentAgentId ? currentAgentName : (item.agentId ? `상담원 #${item.agentId}` : "미지정"),
+                is_mine: item.agentId === currentAgentId, 
+                is_repeat: false, 
+                process_status: item.statusCode === "DONE" ? "COMPLETED" : 
+                                item.statusCode === "IN_PROGRESS" ? "PENDING" : "TRANSFERRED"
             }));
 
-            // 2. 로컬 스토리지 데이터 통합
-            const localHistoryRaw = localStorage.getItem("consultationHistory");
-            const localHistory: LocalHistoryItem[] = localHistoryRaw ? JSON.parse(localHistoryRaw) : [];
-            const convertedLocal: SearchResult[] = localHistory.map((item) => ({
-                id: String(item.consultation_id || ""),
-                date: new Date(item.created_at || Date.now()).toLocaleDateString(),
-                customer: item.customer_name || "이름 없음",
-                category: item.category || "일반상담",
-                summary: item.content_preview || item.initialMessage || "상담 내역",
-                agent: currentAgentName,
-                is_mine: true,
-                is_repeat: false,
-                process_status: item.status === "DONE" ? "COMPLETED" : "PENDING"
-            }));
-
-            const merged = [...convertedApi, ...convertedLocal];
-            const uniqueResults = Array.from(new Map(merged.filter(i => i.id).map(item => [item.id, item])).values());
-            
+            // 중복 제거 및 상태 업데이트
+            const uniqueResults = Array.from(new Map(convertedApi.filter(i => i.id).map(item => [item.id, item])).values());
             setAllResults(uniqueResults);
+
         } catch (error) {
-            console.error("검색 데이터 로드 실패:", error);
+            console.error("상담 내역 로드 실패:", error);
         } finally {
             setIsLoading(false);
         }
@@ -101,10 +91,9 @@ const ConsultationSearch: React.FC = () => {
         loadSearchData();
     }, [loadSearchData]);
 
-    /** [수정] filteredResults 로직 - toLowerCase 에러 방지막 설치 */
+    /** 필터링 로직 (기존 유지) */
     const filteredResults = useMemo(() => {
         return allResults.filter((res) => {
-            // [해결] 데이터가 undefined일 경우를 대비해 빈 문자열(|| "") 처리
             const customerName = (res?.customer || "").toLowerCase();
             const summaryText = (res?.summary || "").toLowerCase();
             const consultationId = (res?.id || "");
@@ -137,11 +126,7 @@ const ConsultationSearch: React.FC = () => {
     };
 
     const handleRowClick = (id: string) => {
-        if (id.includes("LOG_")) {
-            navigate(`/history/${id}`);
-        } else {
-            navigate(`/consultation/${id}`);
-        }
+        navigate(`/history/${id}`);
     };
 
     return (
@@ -155,6 +140,7 @@ const ConsultationSearch: React.FC = () => {
                 </h1>
             </header>
 
+            {/* 필터 탭 영역 */}
             <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {[
                     { label: "전체 내역", value: "ALL", icon: <Filter size={16} /> },
@@ -188,6 +174,7 @@ const ConsultationSearch: React.FC = () => {
                 ))}
             </div>
 
+            {/* 검색 필터 섹션 */}
             <section className={styles.filterSection}>
                 <div className={styles.filterGrid}>
                     <div className={styles.inputGroup}>
@@ -239,6 +226,7 @@ const ConsultationSearch: React.FC = () => {
                 </div>
             </section>
 
+            {/* 결과 테이블 섹션 */}
             <section className={styles.resultSection}>
                 <div className={styles.resultHeader}>
                     <span>검색 결과 <strong>{filteredResults.length}</strong> 건</span>
@@ -270,11 +258,6 @@ const ConsultationSearch: React.FC = () => {
                                         <td>
                                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                                 <span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span>
-                                                {res.is_repeat && (
-                                                    <span style={{ padding: "2px 8px", fontSize: "11px", backgroundColor: "#FFF0F6", color: "#E6007E", borderRadius: "4px", border: "1px solid #E6007E", fontWeight: 800 }}>
-                                                        재상담
-                                                    </span>
-                                                )}
                                             </div>
                                         </td>
                                         <td>{res.category}</td>

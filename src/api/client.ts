@@ -45,28 +45,43 @@ const setInterceptors = (instance: AxiosInstance) => {
     async (error) => {
       const originalRequest = error.config;
 
-      // [핵심 수정] 401 에러 발생 시 재발급 로직
+      //  401 에러 발생 시 재발급 로직
       // originalRequest._retry가 없을 때만 재발급을 시도하여 무한 루프 방지
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
 
-        try {
+       try {
           console.warn("인증 만료 감지: 토큰 재발급(Refresh) 시도 중...");
           
-          // [수정] instance를 사용하여 baseURL(/api)이 적용된 상태로 요청을 보냄
-          // 이렇게 해야 프록시 설정(/api -> 8081)이 올바르게 적용됩니다.
-          const res = await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true });
+          // 1. 로컬 스토리지에서 Refresh Token 가져오기
+          const refreshToken = localStorage.getItem('refreshToken');
           
-          const newToken = res.data?.data?.accessToken || res.data?.accessToken;
+          if (!refreshToken) {
+            throw new Error("Refresh token이 없습니다. 다시 로그인해야 합니다.");
+          }
 
-          if (newToken) {
+          // 2. [핵심 수정] 백엔드가 요구하는 Body({ refreshToken: "..." }) 형식으로 전송
+          const res = await axios.post('/api/v1/auth/refresh', {
+            refreshToken: refreshToken // 바디에 리프레시 토큰 추가!
+          }, { withCredentials: true });
+          
+          const newAccessToken = res.data?.data?.accessToken || res.data?.accessToken;
+          const newRefreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
+
+          if (newAccessToken) {
             console.log("토큰 재발급 성공! 요청을 재시도합니다.");
-            localStorage.setItem('token', newToken);
+            
+            // 3. 새로 발급받은 토큰들로 로컬 스토리지 갱신
+            localStorage.setItem('token', newAccessToken);
+            if (newRefreshToken) {
+              localStorage.setItem('refreshToken', newRefreshToken);
+            }
 
             if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
             }
-            // 원래 시도했던 요청 다시 보내기
+            
+            // 4. 원래 시도했던 요청 다시 보내기
             return instance(originalRequest);
           }
         } catch (refreshError) {
@@ -81,9 +96,6 @@ const setInterceptors = (instance: AxiosInstance) => {
           return Promise.reject(refreshError);
         }
       }
-
-      // [수정] 재발급 시도 중이 아닐 때 발생하는 401 외의 에러는 그대로 reject
-      // 여기서 window.location.href를 무분별하게 호출하면 튕김 현상이 발생함
       return Promise.reject(error);
     }
   );

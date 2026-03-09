@@ -6,7 +6,7 @@ import type { AxiosResponse } from 'axios';
  * [상부상조] 상담 관련 API 서비스
  */
 
-// ⭐ 명세서 기반 전체 응답 타입 정의 (any 제거)
+
 export interface ConsultationApiResponse {
     success: boolean;
     data: {
@@ -60,8 +60,6 @@ export const fetchConsultations = async (): Promise<ConsultationApiResponse> => 
     try {
         const response = await apiStore.get<ConsultationApiResponse>('/v1/consultations', getAuthHeader());
         
-        // ⭐ Dashboard에서 res.data.todayDoneCount로 읽을 수 있도록 
-        // AxiosResponse에서 data(본문)만 정확히 추출해 반환합니다.
         const result = (response as unknown as AxiosResponse<ConsultationApiResponse>).data || response;
         return result as ConsultationApiResponse;
         

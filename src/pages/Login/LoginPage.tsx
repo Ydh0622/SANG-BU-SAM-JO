@@ -13,13 +13,15 @@ import * as styles from "./Style/Login.css.ts";
 interface BackendLoginResponse {
   token?: string;
   accessToken?: string;
+  refreshToken?: string; 
   user?: { 
-    id?: number | string; // 선택사항으로 변경하여 호환성 높임
+    id?: number | string; 
     name: string; 
   };
   data?: {
     token?: string;
     accessToken?: string;
+    refreshToken?: string; 
     user?: { id?: number | string; name: string };
     agentId?: number | string;
   };
@@ -46,28 +48,30 @@ const LoginPage: React.FC = () => {
       try {
         setIsLoggingIn(true);
         
-        // 1. unknown으로 먼저 변환하여 타입 충돌 회피
         const rawResponse = await authApi.loginWithGoogle(idToken);
         const response = (rawResponse as unknown) as BackendLoginResponse;
 
+        // 토큰 추출 로직
         const token = response.token || response.accessToken || response.data?.token || response.data?.accessToken;
+        //  리프레시 토큰 추출 추가
+        const refreshToken = response.refreshToken || response.data?.refreshToken;
         
         if (!token) throw new Error("서버 응답에 토큰이 없습니다.");
 
+        //  로컬 스토리지 저장 (리프레시 토큰 포함)
         localStorage.setItem("token", token);
+        if (refreshToken) {
+          localStorage.setItem("refreshToken", refreshToken);
+        }
 
         try {
           console.log("📍 [LoginPage] 내 정보 조회(users/me) 시도...");
-          // 여기서도 unknown을 거쳐 UserInfo로 변환
           const rawUserInfo = await authApi.getMe();
           const userInfo = (rawUserInfo as unknown) as UserInfo;
           
-          // 이름 저장
           const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", realName);
 
-          // 유저 ID 저장 (X-USER-ID 헤더용)
-          // userInfo.id가 없을 경우를 대비해 다양한 경로 탐색
           const realUserId = userInfo?.id || response.user?.id || response.data?.user?.id || response.data?.agentId || "1"; 
           localStorage.setItem("userId", String(realUserId));
 
@@ -76,7 +80,7 @@ const LoginPage: React.FC = () => {
           console.error(" [LoginPage] 내 정보 조회 실패, 기본 정보 사용:", userError);
           const backupName = response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", backupName);
-          localStorage.setItem("userId", "1"); // 실패 시 기본값
+          localStorage.setItem("userId", "1"); 
         }
         
         navigate("/dashboard", { replace: true });
@@ -119,7 +123,7 @@ const LoginPage: React.FC = () => {
             </div>
           ) : (
             <div style={{ padding: '10px', color: '#E6007E', fontWeight: 600 }}>
-              인증 정보를 확인 중입니다...
+               인증 정보를 확인 중입니다...
             </div>
           )}
         </div>

@@ -27,7 +27,7 @@ import * as styles from "./Style/Dashboard.css.ts";
 
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
 
-// --- 인터페이스 정의 (타입 충돌 해결 및 확장) ---
+// --- 인터페이스 정의 ---
 export interface ConsultationResponse extends Omit<BaseResponse, 'created_at' | 'updated_at' | 'customer_name' | 'consultation_id' | 'content_preview' | 'status'> {
     created_at?: string;
     updated_at?: string;
@@ -69,7 +69,6 @@ const Dashboard: React.FC = () => {
     } = useConsultation(); 
     
     const navigate = useNavigate();
-    // 린트 에러 방지: location 미사용으로 제거
     const popoverRef = useRef<HTMLDivElement>(null);
     
     const [adminName] = useState(() => localStorage.getItem("userName") || "상담원"); 
@@ -81,7 +80,6 @@ const Dashboard: React.FC = () => {
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
-    // ⭐ 서버에서 받은 '오늘 완료' 숫자를 저장하는 핵심 상태
     const [todayDoneCountFromServer, setTodayDoneCountFromServer] = useState<number>(0);
     const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
     
@@ -98,9 +96,7 @@ const Dashboard: React.FC = () => {
         { id: 3, title: "오전 상담 실적 통계가 집계되었습니다.", type: "report", time: "4시간 전", isRead: true },
     ]);
 
-    /**
-     * ⭐ 화면에 표시될 최종 완료 건수 (서버 숫자 우선 반영)
-     */
+   
     const completedCount = useMemo(() => {
         // 1. 서버에서 받은 숫자가 0보다 크면 그 숫자를 즉시 사용 (예: 3)
         if (todayDoneCountFromServer > 0) return todayDoneCountFromServer;
@@ -118,7 +114,7 @@ const Dashboard: React.FC = () => {
     }, [activities, todayDoneCountFromServer]); 
 
     /**
-     * ⭐ API 데이터를 불러와서 todayDoneCount를 상태에 매핑
+     *  API 데이터를 불러와서 todayDoneCount를 상태에 매핑
      */
     const loadDashboardData = useCallback(async () => {
         const token = localStorage.getItem("token");
@@ -131,14 +127,14 @@ const Dashboard: React.FC = () => {
                 fetchWaitingConsultations()
             ]);
 
-            // ⭐ 네트워크 응답 구조 {"success": true, "data": {"todayDoneCount": 3}} 대응
+            //  네트워크 응답 구조 {"success": true, "data": {"todayDoneCount": 3}}
             if (consultationsRes && typeof consultationsRes === 'object') {
                 const res = consultationsRes as unknown as { 
                     success: boolean; 
                     data?: { todayDoneCount?: number; list?: ConsultationResponse[] } 
                 };
                 
-                // 1. 서버 응답의 data.todayDoneCount 값을 상태에 저장 (이것이 0에서 3으로 바꾸는 핵심)
+                // 1. 서버 응답의 data.todayDoneCount 값을 상태에 저장
                 if (res.data && typeof res.data.todayDoneCount === 'number') {
                     setTodayDoneCountFromServer(res.data.todayDoneCount);
                 }
@@ -313,7 +309,7 @@ const Dashboard: React.FC = () => {
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
                                 <div><span className={styles.statLabel}>실시간 대기</span><div className={styles.statValue}>{waitingList.length}명</div><span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span></div>
                             </div>
-                            {/* ⭐ 오늘 완료 숫자 카드: completedCount가 이제 서버 데이터를 반영합니다. */}
+                 
                             <div className={styles.statCard}>
                                 <div className={styles.statIcon} style={{ background: "#F0FDF4", color: "#22C55E" }}><CheckCircle2 size={20} /></div>
                                 <div><span className={styles.statLabel}>오늘 완료</span><div className={styles.statValue}>{completedCount}건</div></div>
@@ -323,14 +319,32 @@ const Dashboard: React.FC = () => {
                                 <div><span className={styles.statLabel}>나의 성과</span><div className={styles.statValue}>보기</div></div>
                             </div>
                         </div>
-
-                        <section className={styles.glassCard}>
-                            <div className={styles.cardHeader}><h3 className={styles.cardTitle}>최근 상담 내역</h3></div>
-                            <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
-                                <p style={{ fontSize: '14px', fontWeight: 500 }}>최근 상담 내역이 없습니다.</p>
-                            </div>
-                        </section>
+<section className={styles.glassCard}>
+    <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
+        <button 
+            type="button"
+            onClick={() => navigate('/search')} 
+            style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: '#E6007E',      
+                cursor: 'pointer', 
+                fontSize: '14px',      
+                fontWeight: 700,       
+                padding: '4px 0',
+                letterSpacing: '-0.3px'
+            }}
+        >
+            전체보기
+        </button>
+    </div>
+    <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+        <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
+    </div>
+</section>
+                     
                     </div>
 
                     <aside className={styles.mainContentRight}>
