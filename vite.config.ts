@@ -17,7 +17,7 @@ export default defineConfig({
     // 백엔드 서버들로 요청을 배달해주는 프록시 설정
     proxy: {
 
-      "/api/v1/admin": {
+      "/admin": {
         target: "http://localhost:8082",
         changeOrigin: true,
         secure: false,

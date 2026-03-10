@@ -94,7 +94,6 @@ const ConsultationHistory: React.FC = () => {
             <div className={styles.container}>
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        {/* ✅ 스타일 클래스만 사용하도록 수정 */}
                         <button 
                             type="button" 
                             onClick={() => navigate("/search")} 
@@ -118,7 +117,6 @@ const ConsultationHistory: React.FC = () => {
         <div className={styles.container}>
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
-                    {/* ✅ 인라인 스타일과 상태를 지우고, CSS 파일에 정의된 효과만 사용 */}
                     <button 
                         type="button" 
                         onClick={() => navigate("/search")} 

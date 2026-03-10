@@ -27,7 +27,8 @@ import { AxiosError } from "axios";
 import {
     getConsultationDetail,
     sendConsultationMessage,
-    completeConsultation,
+    // completeConsultation 대신 endConsultation 임포트
+    endConsultation, 
     assignConsultation
 } from "../../api/services/consultation";
 import { getSimilarFaq } from "../../api/services/faq";
@@ -79,6 +80,9 @@ const ConsultationDetail: React.FC = () => {
     const [isTyping, setIsTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
+
+    // 상담 종료 결과 코드 상태 (백엔드 finalResultCode 대응)
+    const [finalResultCode, setFinalResultCode] = useState<string>("COMPLETED");
 
     const [waitingCount, setWaitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
@@ -211,21 +215,24 @@ const ConsultationDetail: React.FC = () => {
         }
     }, [inputValue, customerId]);
 
+    //  상담 종료 핸들러 로직 변경 
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
+            console.log(" [상담 종료 요청 시작]");
+            console.log(" 상담 ID:", customerId);
+            console.log(" 전송 데이터(finalResultCode):", finalResultCode);
+
             setShowExitModal(false);
             setIsLoading(true);
 
-            const payload = {
-                customer_request: record.customer_request,
-                agent_action: record.agent_action,
-                summary_text: record.summary_text,
-                issue_type_code: record.issue_type_code,
-                resolution_code: "DONE"
-            };
+            // API 사양에 맞게 finalResultCode 전송
+            const response = await endConsultation(customerId, {
+                finalResultCode: finalResultCode
+            });
 
-            await completeConsultation(customerId, payload);
+            console.log(" [상담 종료 요청 성공]");
+            console.log(" 서버 응답 데이터:", response);
 
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
 
@@ -234,6 +241,14 @@ const ConsultationDetail: React.FC = () => {
         } catch (err) {
             setIsLoading(false);
             const error = err as AxiosError<{ message?: string }>;
+            
+            console.error("[상담 종료 요청 실패]");
+            console.error("에러 메시지:", error.message);
+            if (error.response) {
+                console.error("에러 응답 데이터:", error.response.data);
+                console.error("HTTP 상태 코드:", error.response.status);
+            }
+
             alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
         }
     };
@@ -373,8 +388,27 @@ const ConsultationDetail: React.FC = () => {
                             <button onClick={() => setShowExitModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} color="#666" /></button>
                         </div>
                         <div className={styles.modalBody}>
+                            <div className={styles.fieldGroup} style={{ marginBottom: '20px' }}>
+                                <label><Tag size={14} /> 상담 결과 분류</label>
+                                <select 
+                                    value={finalResultCode} 
+                                    onChange={(e) => setFinalResultCode(e.target.value)}
+                                    style={{ 
+                                        width: '100%', 
+                                        padding: '10px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #ddd',
+                                        marginTop: '8px'
+                                    }}
+                                >
+                                    <option value="DONE">처리 완료</option>
+                                    <option value="TRANSFERRED">부서 이관</option>
+                                    <option value="FOLLOW_UP">추후 재통화</option>
+                                    <option value="CANCELLED">상담 취소</option>
+                                </select>
+                            </div>
                             <div className={styles.fieldGroup}>
-                                <label><Edit3 size={14} /> AI 최종 상담 요약</label>
+                                <label><Edit3 size={14} /> AI 최종 상담 요약 (참고용)</label>
                                 <textarea value={record.summary_text} onChange={(e) => setRecord({...record, summary_text: e.target.value})} />
                             </div>
                         </div>

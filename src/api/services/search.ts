@@ -27,7 +27,7 @@ export const fetchSearchList = async (tab: 'ALL' | 'MY' = 'ALL'): Promise<Search
 
         // 1. API 호출
         const response = await apiStore.get<unknown>(
-            `/v1/admin/consultations?tab=${tab}`, 
+            `/v1/consultations?tab=${tab}`, 
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,

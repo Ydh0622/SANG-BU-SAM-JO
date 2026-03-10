@@ -38,6 +38,16 @@ export interface ConsultationCompleteRequest {
     resolution_code: string;
 }
 
+/** 상담 종료 요청 인터페이스 추가 */
+export interface ConsultationEndRequest {
+    finalResultCode: string;
+}
+
+/** 상담 종료 응답 인터페이스 추가 */
+export interface ConsultationEndResponse {
+    todayDoneCount: number;
+}
+
 const getAuthHeader = () => {
     const token = localStorage.getItem("token"); 
     const userId = localStorage.getItem("userId"); 
@@ -105,7 +115,7 @@ export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[
     }
 };
 
-/**  [DELETE] 대기 상담 제거  */
+/** [DELETE] 대기 상담 제거  */
 export const deleteWaitingConsultation = (consultationId: string | number) => 
     apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
 
@@ -129,3 +139,16 @@ export const sendConsultationMessage = (consultationId: string | number, message
 
 export const completeConsultation = (consultationId: string | number, data: ConsultationCompleteRequest) => 
     apiStore.post(`/v1/consultations/${consultationId}/complete`, data, getAuthHeader());
+
+/** * [POST] 진행 중인 상담 종료 
+ * IN_PROGRESS 상태만 가능, AI 후처리 PENDING 전환, 오늘 처리 건수 반환 
+ */
+export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {
+    const response = await apiStore.post<ConsultationEndResponse>(
+        `/v1/consultations/${consultationId}/end`, 
+        data, 
+        getAuthHeader()
+    );
+    const result = (response as unknown as AxiosResponse<ConsultationEndResponse>).data || response;
+    return result as ConsultationEndResponse;
+};
