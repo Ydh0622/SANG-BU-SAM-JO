@@ -15,11 +15,11 @@ export interface ConsultationApiResponse {
     error: string | null;
 }
 
-interface ApiListResponse {
-    data?: ConsultationResponse[];
-    list?: ConsultationResponse[];
-    content?: ConsultationResponse[];
-}
+// interface ApiListResponse {
+//     data?: ConsultationResponse[];
+//     list?: ConsultationResponse[];
+//     content?: ConsultationResponse[];
+// }
 
 export interface ConsultationCreateRequest {
     customer_name: string;
@@ -36,6 +36,27 @@ export interface ConsultationCompleteRequest {
     summary_text: string;
     issue_type_code: string;
     resolution_code: string;
+}
+
+export interface MatchOldestResponse {
+    consultationId: number;
+    customerName?: string | null;
+    initialMessage?: string | null;
+    meta?: {
+        channelCode?: string | null;
+        productLineCode?: string | null;
+        priorityCode?: string | null;
+        createdAt?: string | null;
+        issueTypeId?: number | null;
+    };
+}
+
+export interface AssignResponse {
+    consultationId: number;
+    status: string;       // IN_PROGRESS
+    agentId: number;
+    startedAt: string;
+    version: number;
 }
 
 /** 상담 종료 요청 인터페이스 추가 */
@@ -65,26 +86,26 @@ const getAuthHeader = () => {
 // ---------------------------------------------------------
 
 /** [GET] 전체 상담 목록 조회 */
-export const fetchConsultations = async (): Promise<ConsultationApiResponse> => {
-    try {
-        const response = await apiStore.get<ConsultationApiResponse>('/v1/consultations', getAuthHeader());
-        
-        const result = (response as unknown as AxiosResponse<ConsultationApiResponse>).data || response;
-        return result as ConsultationApiResponse;
-        
-    } catch (error) {
-        console.error("상담 목록 로드 실패:", error);
-        throw error;
-    }
+export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
+  try {
+    return await apiStore.get('/v1/consultations', getAuthHeader());
+  } catch (error) {
+    console.error("상담 목록 로드 실패:", error);
+    throw error;
+  }
 };
 
 /** [POST] 신규 상담 생성 */
 export const createConsultation = (data: ConsultationCreateRequest) => 
     apiStore.post<ConsultationResponse>('/v1/consultations', data, getAuthHeader());
 
-/** [POST] 특정 상담 배정 */
-export const assignConsultation = (consultationId: string | number) => 
-    apiStore.post(`/v1/consultations/${consultationId}/assign`, {}, getAuthHeader());
+export const matchOldestConsultation = async (): Promise<MatchOldestResponse> => {
+    return await apiStore.post('/v1/consultations/match/oldest', {}, getAuthHeader());
+};
+
+export const assignConsultation = async (consultationId: string | number): Promise<AssignResponse> => {
+    return await apiStore.post(`/v1/consultations/${consultationId}/assign`, {}, getAuthHeader());
+};
 
 
 // ---------------------------------------------------------
@@ -93,26 +114,17 @@ export const assignConsultation = (consultationId: string | number) =>
 
 /** 대기 상담 수 조회 */
 export const fetchWaitingCount = async (): Promise<{ count: number }> => {
-    const response = await apiStore.get<{ count: number }>('/v1/consultations/waiting/count', getAuthHeader());
-    const result = (response as unknown as AxiosResponse<{ count: number }>).data || response;
-    return result as { count: number };
+  return await apiStore.get('/v1/consultations/waiting/count', getAuthHeader());
 };
 
 /** 대기 상담 목록 조회 */
 export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[]> => {
-    try {
-        const response = await apiStore.get<ConsultationResponse[] | ApiListResponse>('/v1/consultations/waiting', getAuthHeader());
-        const actualData = (response as unknown as AxiosResponse<ConsultationResponse[] | ApiListResponse>).data || response;
-
-        if (Array.isArray(actualData)) return actualData;
-        
-        const res = actualData as ApiListResponse;
-        return res.data || res.list || res.content || [];
-        
-    } catch (error) {
-        console.error("대기 상담 목록 로드 실패:", error);
-        return [];
-    }
+  try {
+    return await apiStore.get('/v1/consultations/waiting', getAuthHeader());
+  } catch (error) {
+    console.error("대기 상담 목록 로드 실패:", error);
+    return [];
+  }
 };
 
 /** [DELETE] 대기 상담 제거  */
@@ -120,8 +132,8 @@ export const deleteWaitingConsultation = (consultationId: string | number) =>
     apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
 
 /** 다음 대기 고객 배정 요청 */
-export const claimNextCustomer = () => 
-    apiStore.post('/v1/consultations/queue/claim-next', {}, getAuthHeader());
+// export const claimNextCustomer = () =>
+//     apiStore.post('/v1/consultations/queue/claim-next', {}, getAuthHeader());
 
 
 // ---------------------------------------------------------
@@ -131,14 +143,14 @@ export const claimNextCustomer = () =>
 export const getConsultationDetail = (consultationId: string | number) => 
     apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader());
 
-export const acceptConsultation = (consultationId: string | number) => 
-    apiStore.post(`/v1/consultations/${consultationId}/accept`, {}, getAuthHeader());
+// export const acceptConsultation = (consultationId: string | number) =>
+//     apiStore.post(`/v1/consultations/${consultationId}/accept`, {}, getAuthHeader());
 
 export const sendConsultationMessage = (consultationId: string | number, message: string) => 
     apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
 
-export const completeConsultation = (consultationId: string | number, data: ConsultationCompleteRequest) => 
-    apiStore.post(`/v1/consultations/${consultationId}/complete`, data, getAuthHeader());
+// export const completeConsultation = (consultationId: string | number, data: ConsultationCompleteRequest) =>
+//     apiStore.post(`/v1/consultations/${consultationId}/complete`, data, getAuthHeader());
 
 /** * [POST] 진행 중인 상담 종료 
  * IN_PROGRESS 상태만 가능, AI 후처리 PENDING 전환, 오늘 처리 건수 반환 

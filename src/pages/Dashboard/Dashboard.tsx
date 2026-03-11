@@ -26,8 +26,10 @@ import {
     fetchConsultations, 
     fetchWaitingCount, 
     fetchWaitingConsultations,
-    deleteWaitingConsultation
-} from "../../api/services/consultation"; 
+    deleteWaitingConsultation,
+    matchOldestConsultation,
+    assignConsultation
+} from "../../api/services/consultation";
 import * as styles from "./Style/Dashboard.css.ts";
 
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
@@ -89,7 +91,7 @@ const Dashboard: React.FC = () => {
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
-    const [todayDoneCountFromServer, setTodayDoneCountFromServer] = useState<number>(0);
+    const [todayDoneCountFromServer] = useState<number>(0);
     const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
     
     const waitingList = useMemo<(ConsultationResponse | CustomerInfo)[]>(() => {
@@ -130,23 +132,8 @@ const Dashboard: React.FC = () => {
                 fetchWaitingConsultations()
             ]);
 
-            if (consultationsRes && typeof consultationsRes === 'object') {
-                const res = consultationsRes as unknown as { 
-                    success: boolean; 
-                    data?: { todayDoneCount?: number; list?: ConsultationResponse[] } 
-                };
-                
-                if (res.data && typeof res.data.todayDoneCount === 'number') {
-                    setTodayDoneCountFromServer(res.data.todayDoneCount);
-                }
-                
-                const list = Array.isArray(res.data?.list) ? res.data!.list! : (Array.isArray(consultationsRes) ? (consultationsRes as ConsultationResponse[]) : []);
-                setActivities([...list]);
-            }
-            
-            if (Array.isArray(waitingRes)) {
-                setApiWaitingList([...(waitingRes as ConsultationResponse[])]);
-            }
+            setActivities(Array.isArray(consultationsRes) ? consultationsRes : []);
+            setApiWaitingList(Array.isArray(waitingRes) ? waitingRes : []);
         } catch (error) {
             console.error("데이터 로드 실패:", error);
         }
@@ -173,31 +160,35 @@ const Dashboard: React.FC = () => {
         return () => clearInterval(interval);
     }, [navigate, loadDashboardData]); 
 
-    const assignNextCustomer = useCallback((currentStatus?: string) => {
+    const assignNextCustomer = useCallback(async (currentStatus?: string) => {
         const checkStatus = currentStatus || workStatus;
-        
+
         if (checkStatus !== "AVAILABLE" || assignedCustomer || isCooldown) return;
-        
-        if (waitingList.length > 0) {
-            // 대기열 중 skippedCustomerIds에 포함되지 않은 첫 번째 고객을 찾음
-            const nextCustomer = waitingList.find(item => {
-                const id = (item as ConsultationResponse).consultationId || 
-                           (item as ConsultationResponse).consultation_id || 
-                           (item as CustomerInfo).id;
-                return id && !skippedCustomerIds.has(id);
-            });
 
-            if (nextCustomer) {
-                setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
-            }
-        }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList, isCooldown, skippedCustomerIds]); 
+        try {
+            const data = await matchOldestConsultation();
 
-    useEffect(() => {
-        if (workStatus === "AVAILABLE" && !assignedCustomer && !isCooldown) {
-            assignNextCustomer();
+            if (!data?.consultationId) return;
+            if (skippedCustomerIds.has(data.consultationId)) return;
+
+            const matchedCustomer: ConsultationResponse = {
+                consultationId: data.consultationId,
+                consultation_id: data.consultationId,
+                customerName: data.customerName ?? "고객",
+                customer_name: data.customerName ?? "고객",
+                initialMessage: data.initialMessage ?? "상담 요청이 도착했습니다.",
+                channelCode: data.meta?.channelCode ?? undefined,
+                productLineCode: data.meta?.productLineCode ?? undefined,
+                priorityCode: data.meta?.priorityCode ?? undefined,
+                created_at: data.meta?.createdAt ?? undefined,
+                statusCode: "WAITING",
+            };
+
+            setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+        } catch (error) {
+            console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
-    }, [waitingList, workStatus, assignedCustomer, isCooldown, assignNextCustomer]);
+    }, [workStatus, assignedCustomer, isCooldown, skippedCustomerIds, setAssignedCustomer]);
 
     const handleToggleStatus = useCallback(() => {
         toggleWorkStatus();
@@ -226,26 +217,56 @@ const Dashboard: React.FC = () => {
     }, [loadDashboardData]);
 
     const handleAcceptConsultation = useCallback(
-        (customer: CustomerInfo | ConsultationResponse) => {
+        async (customer: CustomerInfo | ConsultationResponse) => {
             const consultation = customer as ConsultationResponse;
             const info = customer as CustomerInfo;
+
             const id = consultation.consultationId || consultation.consultation_id || info.id;
             const name = consultation.customerName || consultation.customer_name || info.name || "고객";
-            const msg = consultation.initialMessage || consultation.content_preview || info.inquiryMessage || "상담 신청합니다.";
-            
+            const msg =
+                consultation.initialMessage ||
+                consultation.content_preview ||
+                info.inquiryMessage ||
+                "상담 신청합니다.";
+
             if (!id) return;
 
-            localStorage.setItem("realtime_waiting_count", String(waitingList.length > 0 ? waitingList.length - 1 : 0));
-            localStorage.setItem("isMatched", "true");
-            localStorage.setItem("lastInquiry", JSON.stringify({
-                message: msg,
-                customerName: name,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }));
-            localStorage.setItem("currentCustomer", JSON.stringify({ name }));
+            try {
+                const assigned = await assignConsultation(id);
 
-            setAssignedCustomer(null);
-            navigate(`/consultation/${id}`);
+                localStorage.setItem(
+                    "realtime_waiting_count",
+                    String(waitingList.length > 0 ? waitingList.length - 1 : 0)
+                );
+                localStorage.setItem("isMatched", "true");
+                localStorage.setItem(
+                    "lastInquiry",
+                    JSON.stringify({
+                        message: msg,
+                        customerName: name,
+                        time: new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        }),
+                    })
+                );
+                localStorage.setItem(
+                    "currentCustomer",
+                    JSON.stringify({
+                        name,
+                        consultationId: assigned.consultationId,
+                        agentId: assigned.agentId,
+                        startedAt: assigned.startedAt,
+                        status: assigned.status,
+                    })
+                );
+
+                setAssignedCustomer(null);
+                navigate(`/consultation/${id}`);
+            } catch (error) {
+                console.error("상담 배정 실패:", error);
+                alert("상담 배정 처리에 실패했습니다.");
+            }
         },
         [navigate, setAssignedCustomer, waitingList.length]
     );
