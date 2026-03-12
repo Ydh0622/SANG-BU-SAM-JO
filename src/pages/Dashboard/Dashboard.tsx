@@ -171,21 +171,21 @@ const Dashboard: React.FC = () => {
             if (!data?.consultationId) return;
             if (skippedCustomerIds.has(data.consultationId)) return;
 
-            // const matchedCustomer: ConsultationResponse = {
-            //     consultationId: data.consultationId,
-            //     consultation_id: data.consultationId,
-            //     customerName: data.customerName ?? "고객",
-            //     customer_name: data.customerName ?? "고객",
-            //     initialMessage: data.initialMessage ?? "상담 요청이 도착했습니다.",
-            //     channelCode: data.meta?.channelCode ?? undefined,
-            //     productLineCode: data.meta?.productLineCode ?? undefined,
-            //     priorityCode: data.meta?.priorityCode ?? undefined,
-            //     created_at: data.meta?.createdAt ?? undefined,
-            //     statusCode: "WAITING",
+            const matchedCustomer: ConsultationResponse = {
+                consultationId: data.consultationId,
+                consultation_id: data.consultationId,
+                customerName: data.customerName ?? "고객",
+                customer_name: data.customerName ?? "고객",
+                initialMessage: data.initialMessage ?? "상담 요청이 도착했습니다.",
+                channelCode: data.meta?.channelCode ?? undefined,
+                productLineCode: data.meta?.productLineCode ?? undefined,
+                priorityCode: data.meta?.priorityCode ?? undefined,
+                created_at: data.meta?.createdAt ?? undefined,
+                statusCode: "WAITING",
                 
-            // };
+            };
 
-            // setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+            setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
         } catch (error) {
             console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
