@@ -5,29 +5,26 @@ import type { ConsultationResponse } from '../../types/consultation';
  * [상부상조] 상담 관련 API 서비스
  */
 
-// 1. 요청 인터페이스
+// 1. 신규 상담 생성 요청 인터페이스 (가이드 반영)
 export interface CreateConsultationRequest {
-    customerName: string; 
-    phone: string;        
+    customerName: string;
+    phone: string;
     channel: "CHAT";
     productLineCode: "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
     issueTypeId: number;
-    priority: "LOW" | "MID" | "HIGH";
+    priority: "HIGH" | "MID" | "LOW";
     initialMessage: string;
 }
 
-// 2. 실제 데이터 알맹이 인터페이스
-export interface ConsultationData {
-    consultationId: number;
-    status: string;
-    createdAt: string;
-}
-
-// 3. 서버 전체 응답 구조
+// 2. 신규 상담 생성 응답 인터페이스 (가이드 반영)
 export interface CreateConsultationResponse {
     success: boolean;
-    data: ConsultationData;
-    error: string | null;
+    data: {
+        consultationId: number;
+        status: string;
+        createdAt: string;
+    };
+    error?: string | null;
 }
 
 export interface ConsultationApiResponse {
@@ -39,12 +36,41 @@ export interface ConsultationApiResponse {
     error: string | null;
 }
 
-export interface ConsultationCompleteRequest {
-    customer_request: string;
-    agent_action: string;
-    summary_text: string;
-    issue_type_code: string;
-    resolution_code: string;
+/** * 대시보드 에러 해결을 위한 매칭 응답 인터페이스 보강 
+ * 에러 메시지에서 요구하는 필드들을 선택적 속성(?)으로 추가하여 타입 불일치 해결
+ */
+export interface MatchOldestResponse {
+    consultationId: number;
+    consultation_id: number;      // 대시보드 호환용
+    customerName: string;
+    customer_name: string;        // 대시보드 호환용
+    initialMessage: string;
+    statusCode: string;
+    // 에러 메시지에서 ConsultationResponse 형식에 없다고 지적한 필드들 추가
+    contact_info?: string; 
+    channel_type?: 'CHAT' | 'PHONE' | 'WEB';
+    priority?: 'LOW' | 'MID' | 'HIGH';
+    category?: string;
+    issue_detail?: string;
+    channelCode?: string;
+    productLineCode?: string;
+    priorityCode?: string;
+    created_at?: string;
+    meta?: {
+        channelCode?: string | null;
+        productLineCode?: string | null;
+        priorityCode?: string | null;
+        createdAt?: string | null;
+        issueTypeId?: number | null;
+    };
+}
+
+export interface AssignResponse {
+    consultationId: number;
+    status: string;
+    agentId: number;
+    startedAt: string;
+    version: number;
 }
 
 export interface ConsultationEndRequest {
@@ -55,7 +81,6 @@ export interface ConsultationEndResponse {
     todayDoneCount: number;
 }
 
-// 공통 헤더 설정
 const getAuthHeader = () => {
     const token = localStorage.getItem("token"); 
     const userId = localStorage.getItem("userId"); 
@@ -69,99 +94,57 @@ const getAuthHeader = () => {
 };
 
 // ---------------------------------------------------------
-// 1. 기본 상담 관리
+// API 호출 함수들
 // ---------------------------------------------------------
+
+/** [POST] 신규 상담 생성 */
+export const createConsultation = async (data: CreateConsultationRequest): Promise<CreateConsultationResponse> => {
+    return await apiStore.post('/api/v1/consultations', data);
+};
 
 /** [GET] 전체 상담 목록 조회 */
-export const fetchConsultations = async (): Promise<ConsultationApiResponse> => {
-    const response = await apiStore.get<ConsultationApiResponse>('/v1/consultations', getAuthHeader());
-    return response as unknown as ConsultationApiResponse;
+export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
+    return await apiStore.get('/v1/consultations', getAuthHeader());
 };
 
-/** [POST] 신규 상담 생성 
- */
-export const createConsultation = async (data: CreateConsultationRequest): Promise<CreateConsultationResponse> => {
-    // 401 Unauthorized 방지를 위해 세 번째 인자(헤더)를 비워둡니다.
-    const response = await apiStore.post<unknown>('/v1/consultations', data);
-    
-    // 인터셉터를 거친 response를 안전하게 타입 단언
-    const result = response as unknown as CreateConsultationResponse;
-    
-    // 인터셉터가 data.data(알맹이)만 반환했을 경우를 위한 방어 로직
-    const isDirectData = response as unknown as ConsultationData;
-    if (result.success === undefined && isDirectData.consultationId) {
-        return {
-            success: true,
-            data: isDirectData,
-            error: null
-        };
-    }
+/** [DELETE] 대기 상담 제거 (누락된 함수 복구) */
+export const deleteWaitingConsultation = (consultationId: string | number) => 
+    apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
 
-    if (result.success === false) {
-        throw new Error(result.error || "상담 생성에 실패했습니다.");
-    }
-    
-    return result;
+/** 가장 오래된 대기 상담 매칭 */
+export const matchOldestConsultation = async (): Promise<MatchOldestResponse> => {
+    return await apiStore.post('/v1/consultations/match/oldest', {}, getAuthHeader());
 };
 
-/** [POST] 특정 상담 배정 */
-export const assignConsultation = (consultationId: string | number) => 
-    apiStore.post(`/v1/consultations/${consultationId}/assign`, {}, getAuthHeader());
-
-
-// ---------------------------------------------------------
-// 2. 대기열 및 큐 관리
-// ---------------------------------------------------------
+/** 상담 배정 */
+export const assignConsultation = async (consultationId: string | number): Promise<AssignResponse> => {
+    return await apiStore.post(`/v1/consultations/${consultationId}/assign`, {}, getAuthHeader());
+};
 
 /** 대기 상담 수 조회 */
 export const fetchWaitingCount = async (): Promise<{ count: number }> => {
-    const response = await apiStore.get<{ count: number }>('/v1/consultations/waiting/count', getAuthHeader());
-    return response as unknown as { count: number };
+    return await apiStore.get('/v1/consultations/waiting/count', getAuthHeader());
 };
 
 /** 대기 상담 목록 조회 */
 export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[]> => {
     try {
-        const response = await apiStore.get<ConsultationResponse[]>('/v1/consultations/waiting', getAuthHeader());
-        return response as unknown as ConsultationResponse[];
+        return await apiStore.get('/v1/consultations/waiting', getAuthHeader());
     } catch (error) {
         console.error("대기 상담 목록 로드 실패:", error);
         return [];
     }
 };
 
-/** [DELETE] 대기 상담 제거  */
-export const deleteWaitingConsultation = (consultationId: string | number) => 
-    apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
-
-/** 다음 대기 고객 배정 요청 */
-export const claimNextCustomer = () => 
-    apiStore.post('/v1/consultations/queue/claim-next', {}, getAuthHeader());
-
-
-// ---------------------------------------------------------
-// 3. 상담 상세 진행 및 종료
-// ---------------------------------------------------------
-
+/** 상담 상세 조회 */
 export const getConsultationDetail = (consultationId: string | number) => 
-    apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader())
-        .then(res => res as unknown as ConsultationResponse);
+    apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader());
 
-export const acceptConsultation = (consultationId: string | number) => 
-    apiStore.post(`/v1/consultations/${consultationId}/accept`, {}, getAuthHeader());
-
+/** 상담 메시지 전송 */
 export const sendConsultationMessage = (consultationId: string | number, message: string) => 
     apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
 
-export const completeConsultation = (consultationId: string | number, data: ConsultationCompleteRequest) => 
-    apiStore.post(`/v1/consultations/${consultationId}/complete`, data, getAuthHeader());
-
-/** [POST] 진행 중인 상담 종료 */
+/** 상담 종료 */
 export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {
-    const response = await apiStore.post<ConsultationEndResponse>(
-        `/v1/consultations/${consultationId}/end`, 
-        data, 
-        getAuthHeader()
-    );
-    return response as unknown as ConsultationEndResponse;
+    return await apiStore.post(`/v1/consultations/${consultationId}/end`, data, getAuthHeader());
 };

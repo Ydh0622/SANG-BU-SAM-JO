@@ -26,8 +26,10 @@ import {
     fetchConsultations, 
     fetchWaitingCount, 
     fetchWaitingConsultations,
-    deleteWaitingConsultation
-} from "../../api/services/consultation"; 
+    deleteWaitingConsultation,
+    matchOldestConsultation,
+    assignConsultation
+} from "../../api/services/consultation";
 import * as styles from "./Style/Dashboard.css.ts";
 
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
@@ -83,10 +85,13 @@ const Dashboard: React.FC = () => {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
     
+    const [isCooldown, setIsCooldown] = useState(false);
+    const [skippedCustomerIds, setSkippedCustomerIds] = useState<Set<number | string>>(new Set());
+
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
-    const [todayDoneCountFromServer, setTodayDoneCountFromServer] = useState<number>(0);
+    const [todayDoneCountFromServer] = useState<number>(0);
     const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
     
     const waitingList = useMemo<(ConsultationResponse | CustomerInfo)[]>(() => {
@@ -102,7 +107,6 @@ const Dashboard: React.FC = () => {
         { id: 3, title: "오전 상담 실적 통계가 집계되었습니다.", type: "report", time: "4시간 전", isRead: true },
     ]);
 
-   
     const completedCount = useMemo(() => {
         if (todayDoneCountFromServer > 0) return todayDoneCountFromServer;
 
@@ -128,23 +132,8 @@ const Dashboard: React.FC = () => {
                 fetchWaitingConsultations()
             ]);
 
-            if (consultationsRes && typeof consultationsRes === 'object') {
-                const res = consultationsRes as unknown as { 
-                    success: boolean; 
-                    data?: { todayDoneCount?: number; list?: ConsultationResponse[] } 
-                };
-                
-                if (res.data && typeof res.data.todayDoneCount === 'number') {
-                    setTodayDoneCountFromServer(res.data.todayDoneCount);
-                }
-                
-                const list = Array.isArray(res.data?.list) ? res.data!.list! : (Array.isArray(consultationsRes) ? (consultationsRes as ConsultationResponse[]) : []);
-                setActivities([...list]);
-            }
-            
-            if (Array.isArray(waitingRes)) {
-                setApiWaitingList([...(waitingRes as ConsultationResponse[])]);
-            }
+            setActivities(Array.isArray(consultationsRes) ? consultationsRes : []);
+            setApiWaitingList(Array.isArray(waitingRes) ? waitingRes : []);
         } catch (error) {
             console.error("데이터 로드 실패:", error);
         }
@@ -171,14 +160,36 @@ const Dashboard: React.FC = () => {
         return () => clearInterval(interval);
     }, [navigate, loadDashboardData]); 
 
-    const assignNextCustomer = useCallback((currentStatus?: string) => {
+    const assignNextCustomer = useCallback(async (currentStatus?: string) => {
         const checkStatus = currentStatus || workStatus;
-        if (checkStatus !== "AVAILABLE" || assignedCustomer) return;
-        if (waitingList.length > 0) {
-            const nextCustomer = waitingList[0];
-            setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
+
+        if (checkStatus !== "AVAILABLE" || assignedCustomer || isCooldown) return;
+
+        try {
+            const data = await matchOldestConsultation();
+
+            if (!data?.consultationId) return;
+            if (skippedCustomerIds.has(data.consultationId)) return;
+
+            // const matchedCustomer: ConsultationResponse = {
+            //     consultationId: data.consultationId,
+            //     consultation_id: data.consultationId,
+            //     customerName: data.customerName ?? "고객",
+            //     customer_name: data.customerName ?? "고객",
+            //     initialMessage: data.initialMessage ?? "상담 요청이 도착했습니다.",
+            //     channelCode: data.meta?.channelCode ?? undefined,
+            //     productLineCode: data.meta?.productLineCode ?? undefined,
+            //     priorityCode: data.meta?.priorityCode ?? undefined,
+            //     created_at: data.meta?.createdAt ?? undefined,
+            //     statusCode: "WAITING",
+                
+            // };
+
+            setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+        } catch (error) {
+            console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList]); 
+    }, [workStatus, assignedCustomer, isCooldown, skippedCustomerIds, setAssignedCustomer]);
 
     const handleToggleStatus = useCallback(() => {
         toggleWorkStatus();
@@ -187,22 +198,16 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
-    /** API 연동 추가: 대기열에서 실제 삭제 처리 */
     const handleRemoveWaitingCustomer = useCallback(async (customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
             try {
-                // 1. 서버 API 호출
                 await deleteWaitingConsultation(customerId);
-
-                // 2. 로컬 상태 업데이트 (화면에서 즉시 제거)
                 setApiWaitingList((prev) => 
                     prev.filter((item) => {
                         const id = item.consultationId || item.consultation_id || (item as unknown as { id: string | number }).id;
                         return id !== customerId;
                     })
                 ); 
-
-                // 3. 전체 데이터 갱신 (카운트 등 동기화)
                 await loadDashboardData();
                 alert("성공적으로 제거되었습니다.");
             } catch (error) {
@@ -213,31 +218,80 @@ const Dashboard: React.FC = () => {
     }, [loadDashboardData]);
 
     const handleAcceptConsultation = useCallback(
-        (customer: CustomerInfo | ConsultationResponse) => {
+        async (customer: CustomerInfo | ConsultationResponse) => {
             const consultation = customer as ConsultationResponse;
             const info = customer as CustomerInfo;
+
             const id = consultation.consultationId || consultation.consultation_id || info.id;
             const name = consultation.customerName || consultation.customer_name || info.name || "고객";
-            const msg = consultation.initialMessage || consultation.content_preview || info.inquiryMessage || "상담 신청합니다.";
-            
+            const msg =
+                consultation.initialMessage ||
+                consultation.content_preview ||
+                info.inquiryMessage ||
+                "상담 신청합니다.";
+
             if (!id) return;
 
-            localStorage.setItem("realtime_waiting_count", String(waitingList.length > 0 ? waitingList.length - 1 : 0));
-            localStorage.setItem("isMatched", "true");
-            localStorage.setItem("lastInquiry", JSON.stringify({
-                message: msg,
-                customerName: name,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }));
-            localStorage.setItem("currentCustomer", JSON.stringify({ name }));
+            try {
+                const assigned = await assignConsultation(id);
 
-            setAssignedCustomer(null);
-            navigate(`/consultation/${id}`);
+                localStorage.setItem(
+                    "realtime_waiting_count",
+                    String(waitingList.length > 0 ? waitingList.length - 1 : 0)
+                );
+                localStorage.setItem("isMatched", "true");
+                localStorage.setItem(
+                    "lastInquiry",
+                    JSON.stringify({
+                        message: msg,
+                        customerName: name,
+                        time: new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        }),
+                    })
+                );
+                localStorage.setItem(
+                    "currentCustomer",
+                    JSON.stringify({
+                        name,
+                        consultationId: assigned.consultationId,
+                        agentId: assigned.agentId,
+                        startedAt: assigned.startedAt,
+                        status: assigned.status,
+                    })
+                );
+
+                setAssignedCustomer(null);
+                navigate(`/consultation/${id}`);
+            } catch (error) {
+                console.error("상담 배정 실패:", error);
+                alert("상담 배정 처리에 실패했습니다.");
+            }
         },
         [navigate, setAssignedCustomer, waitingList.length]
     );
 
-    const handleRejectConsultation = useCallback(() => setAssignedCustomer(null), [setAssignedCustomer]);
+    // 거절 핸들러 수정: 거절한 ID를 기억하고 5초 후 다음 고객 배정
+    const handleRejectConsultation = useCallback(() => {
+        if (assignedCustomer) {
+            const id = (assignedCustomer as unknown as ConsultationResponse).consultationId || 
+                       (assignedCustomer as unknown as ConsultationResponse).consultation_id || 
+                       (assignedCustomer as CustomerInfo).id;
+            
+            if (id) {
+                setSkippedCustomerIds(prev => new Set(prev).add(id));
+            }
+        }
+
+        setAssignedCustomer(null);
+        setIsCooldown(true);
+        
+        setTimeout(() => {
+            setIsCooldown(false);
+        }, 5000);
+    }, [assignedCustomer, setAssignedCustomer]);
+
     const handleNotificationClick = (id: number) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     const markAllAsRead = (e: React.MouseEvent) => { e.stopPropagation(); setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))); };
     const handleLogout = useCallback(() => { if (window.confirm("로그아웃 하시겠습니까?")) { localStorage.clear(); navigate("/", { replace: true }); } }, [navigate]); 
@@ -316,7 +370,7 @@ const Dashboard: React.FC = () => {
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
                                 <div><span className={styles.statLabel}>실시간 대기</span><div className={styles.statValue}>{waitingList.length}명</div><span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span></div>
                             </div>
-                  
+                 
                             <div className={styles.statCard}>
                                 <div className={styles.statIcon} style={{ background: "#F0FDF4", color: "#22C55E" }}><CheckCircle2 size={20} /></div>
                                 <div><span className={styles.statLabel}>오늘 완료</span><div className={styles.statValue}>{completedCount}건</div></div>

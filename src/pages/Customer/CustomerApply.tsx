@@ -6,6 +6,23 @@ import * as styles from "./Style/CustomerApply.css.ts";
 import { createConsultation } from "../../api/services/consultation";
 import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
 
+// 1. 카테고리 타입 및 데이터 정의 (컴포넌트 외부)
+type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
+
+interface CategoryInfo {
+    id: number;
+    code: ProductLine;
+}
+
+const CATEGORY_MAP: Record<string, CategoryInfo> = {
+    "요금제/부가서비스": { id: 1, code: "MOBILE" },
+    "기기변경/신규가입": { id: 2, code: "MOBILE" },
+    "기술지원/장애문의": { id: 3, code: "MOBILE" },
+    "결합상품/인터넷": { id: 4, code: "INTERNET" },
+    "이벤트/멤버십": { id: 5, code: "MOBILE" },
+    "기타 문의": { id: 6, code: "ETC" }
+};
+
 const CustomerApply: React.FC = () => {
     const navigate = useNavigate();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -15,19 +32,19 @@ const CustomerApply: React.FC = () => {
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
-        email: "", 
+        email: "",
         category: "", 
         message: ""   
     });
 
     useEffect(() => {
-        let checkTimer: number;
+        let checkTimer: number | undefined;
         if (showModal && !isMatched) {
             checkTimer = window.setInterval(() => {
                 const matchStatus = localStorage.getItem("isMatched");
                 if (matchStatus === "true") {
                     setIsMatched(true);
-                    clearInterval(checkTimer);
+                    if (checkTimer) clearInterval(checkTimer);
                     setTimeout(() => navigate("/customer/chat"), 1500);
                 }
             }, 1000);
@@ -44,22 +61,19 @@ const CustomerApply: React.FC = () => {
         e.preventDefault();
         if (isSubmitting) return;
 
-        // 카테고리 맵핑 (issueTypeId + productLineCode)
-        const categoryMap: Record<string, { id: number; code: "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC" }> = {
-            "요금제/부가서비스": { id: 1, code: "MOBILE" },
-            "기기변경/신규가입": { id: 2, code: "MOBILE" },
-            "기술지원/장애문의": { id: 3, code: "MOBILE" },
-            "결합상품/인터넷": { id: 4, code: "INTERNET" },
-            "이벤트/멤버십": { id: 5, code: "MOBILE" },
-            "기타 문의": { id: 6, code: "ETC" }
-        };
-
-        const selectedCategory = categoryMap[formData.category];
+        // 2. 가이드에 따른 Validation 기준
+        if (!formData.name.trim()) return alert("이름을 입력해주세요.");
+        if (!formData.phone.trim()) return alert("연락처를 입력해주세요.");
+        
+        const selectedCategory = CATEGORY_MAP[formData.category];
         if (!selectedCategory) return alert("문의 카테고리를 선택해주세요.");
+        
+        if (!formData.message.trim()) return alert("상세 내용을 입력해주세요.");
 
         setIsSubmitting(true);
 
         try {
+            // 3. API 요청 규격에 맞춘 페이로드 구성 (any 없음)
             const payload: CreateConsultationRequest = {
                 customerName: formData.name,
                 phone: formData.phone,
@@ -72,14 +86,14 @@ const CustomerApply: React.FC = () => {
 
             const result: CreateConsultationResponse = await createConsultation(payload);
             
-            if (result.success && result.data.consultationId) {
+            if (result.success && result.data) {
                 localStorage.setItem("currentConsultationId", result.data.consultationId.toString());
                 localStorage.setItem("isMatched", "false"); 
                 setShowModal(true);
             }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "서버 연결에 실패했습니다.";
-            alert(errorMessage);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "상담 신청 중 알 수 없는 에러가 발생했습니다.";
+            alert(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -127,12 +141,7 @@ const CustomerApply: React.FC = () => {
                         <div className={styles.inputWrapper} style={{ position: 'relative' }}>
                             <select name="category" value={formData.category} onChange={handleChange} className={styles.input} required style={{ appearance: 'none', background: 'transparent', cursor: 'pointer' }}>
                                 <option value="" disabled>문의 유형을 선택해 주세요</option>
-                                <option value="요금제/부가서비스">요금제/부가서비스</option>
-                                <option value="기기변경/신규가입">기기변경/신규가입</option>
-                                <option value="기술지원/장애문의">기술지원/장애문의</option>
-                                <option value="결합상품/인터넷">결합상품/인터넷</option>
-                                <option value="이벤트/멤버십">이벤트/멤버십</option>
-                                <option value="기타 문의">기타 문의</option>
+                                {Object.keys(CATEGORY_MAP).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
                             <ChevronDown size={18} style={{ position: 'absolute', right: '12px', color: '#9CA3AF', pointerEvents: 'none' }} />
                         </div>
@@ -148,11 +157,13 @@ const CustomerApply: React.FC = () => {
 
                     <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
                         {isSubmitting ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
                                 처리 중... <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
                             </div>
                         ) : (
-                            <>상담 신청하기 <ArrowRight size={20} /></>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                상담 신청하기 <ArrowRight size={20} />
+                            </div>
                         )}
                     </button>
                 </form>
@@ -170,7 +181,7 @@ const CustomerApply: React.FC = () => {
                             <>
                                 <Loader2 size={56} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 20px', color: '#E6007E' }} />
                                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사 연결 완료!</h3>
-                                <p style={{ color: '#6B7280', marginTop: '8px' }}>잠시 후 채팅방으로 이동합니다.</p>
+                                <p style={{ color: '#6B7280', marginTop: '8px' }}>채팅방으로 이동합니다...</p>
                             </>
                         ) : (
                             <>

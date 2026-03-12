@@ -28,8 +28,7 @@ import {
     getConsultationDetail,
     sendConsultationMessage,
     // completeConsultation 대신 endConsultation 임포트
-    endConsultation, 
-    assignConsultation
+    endConsultation
 } from "../../api/services/consultation";
 import { getSimilarFaq } from "../../api/services/faq";
 import type { ConsultationResponse } from "../../types/consultation";
@@ -150,15 +149,6 @@ const ConsultationDetail: React.FC = () => {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
                 actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
-
-                try {
-                    await assignConsultation(customerId);
-                } catch (assignErr) {
-                    const axiosErr = assignErr as AxiosError;
-                    if (axiosErr.response?.status !== 409) {
-                        console.warn("배정 API 확인 필요:", axiosErr.message);
-                    }
-                }
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
