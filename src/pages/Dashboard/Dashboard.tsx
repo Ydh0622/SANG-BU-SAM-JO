@@ -83,9 +83,6 @@ const Dashboard: React.FC = () => {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
     
-    const [isCooldown, setIsCooldown] = useState(false);
-    const [skippedCustomerIds, setSkippedCustomerIds] = useState<Set<number | string>>(new Set());
-
     const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
@@ -105,6 +102,7 @@ const Dashboard: React.FC = () => {
         { id: 3, title: "오전 상담 실적 통계가 집계되었습니다.", type: "report", time: "4시간 전", isRead: true },
     ]);
 
+   
     const completedCount = useMemo(() => {
         if (todayDoneCountFromServer > 0) return todayDoneCountFromServer;
 
@@ -175,29 +173,12 @@ const Dashboard: React.FC = () => {
 
     const assignNextCustomer = useCallback((currentStatus?: string) => {
         const checkStatus = currentStatus || workStatus;
-        
-        if (checkStatus !== "AVAILABLE" || assignedCustomer || isCooldown) return;
-        
+        if (checkStatus !== "AVAILABLE" || assignedCustomer) return;
         if (waitingList.length > 0) {
-            // 대기열 중 skippedCustomerIds에 포함되지 않은 첫 번째 고객을 찾음
-            const nextCustomer = waitingList.find(item => {
-                const id = (item as ConsultationResponse).consultationId || 
-                           (item as ConsultationResponse).consultation_id || 
-                           (item as CustomerInfo).id;
-                return id && !skippedCustomerIds.has(id);
-            });
-
-            if (nextCustomer) {
-                setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
-            }
+            const nextCustomer = waitingList[0];
+            setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
         }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList, isCooldown, skippedCustomerIds]); 
-
-    useEffect(() => {
-        if (workStatus === "AVAILABLE" && !assignedCustomer && !isCooldown) {
-            assignNextCustomer();
-        }
-    }, [waitingList, workStatus, assignedCustomer, isCooldown, assignNextCustomer]);
+    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList]); 
 
     const handleToggleStatus = useCallback(() => {
         toggleWorkStatus();
@@ -206,16 +187,22 @@ const Dashboard: React.FC = () => {
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
+    /** API 연동 추가: 대기열에서 실제 삭제 처리 */
     const handleRemoveWaitingCustomer = useCallback(async (customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
             try {
+                // 1. 서버 API 호출
                 await deleteWaitingConsultation(customerId);
+
+                // 2. 로컬 상태 업데이트 (화면에서 즉시 제거)
                 setApiWaitingList((prev) => 
                     prev.filter((item) => {
                         const id = item.consultationId || item.consultation_id || (item as unknown as { id: string | number }).id;
                         return id !== customerId;
                     })
                 ); 
+
+                // 3. 전체 데이터 갱신 (카운트 등 동기화)
                 await loadDashboardData();
                 alert("성공적으로 제거되었습니다.");
             } catch (error) {
@@ -250,26 +237,7 @@ const Dashboard: React.FC = () => {
         [navigate, setAssignedCustomer, waitingList.length]
     );
 
-    // 거절 핸들러 수정: 거절한 ID를 기억하고 5초 후 다음 고객 배정
-    const handleRejectConsultation = useCallback(() => {
-        if (assignedCustomer) {
-            const id = (assignedCustomer as unknown as ConsultationResponse).consultationId || 
-                       (assignedCustomer as unknown as ConsultationResponse).consultation_id || 
-                       (assignedCustomer as CustomerInfo).id;
-            
-            if (id) {
-                setSkippedCustomerIds(prev => new Set(prev).add(id));
-            }
-        }
-
-        setAssignedCustomer(null);
-        setIsCooldown(true);
-        
-        setTimeout(() => {
-            setIsCooldown(false);
-        }, 5000);
-    }, [assignedCustomer, setAssignedCustomer]);
-
+    const handleRejectConsultation = useCallback(() => setAssignedCustomer(null), [setAssignedCustomer]);
     const handleNotificationClick = (id: number) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     const markAllAsRead = (e: React.MouseEvent) => { e.stopPropagation(); setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))); };
     const handleLogout = useCallback(() => { if (window.confirm("로그아웃 하시겠습니까?")) { localStorage.clear(); navigate("/", { replace: true }); } }, [navigate]); 
@@ -348,7 +316,7 @@ const Dashboard: React.FC = () => {
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
                                 <div><span className={styles.statLabel}>실시간 대기</span><div className={styles.statValue}>{waitingList.length}명</div><span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span></div>
                             </div>
-                 
+                  
                             <div className={styles.statCard}>
                                 <div className={styles.statIcon} style={{ background: "#F0FDF4", color: "#22C55E" }}><CheckCircle2 size={20} /></div>
                                 <div><span className={styles.statLabel}>오늘 완료</span><div className={styles.statValue}>{completedCount}건</div></div>

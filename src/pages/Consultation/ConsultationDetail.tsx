@@ -82,7 +82,7 @@ const ConsultationDetail: React.FC = () => {
     const [showExitModal, setShowExitModal] = useState(false);
 
     // 상담 종료 결과 코드 상태 (백엔드 finalResultCode 대응)
-    const [finalResultCode, setFinalResultCode] = useState<string>("COMPLETED");
+    const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
     const [waitingCount, setWaitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
