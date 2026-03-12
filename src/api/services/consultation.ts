@@ -99,7 +99,7 @@ const getAuthHeader = () => {
 
 /** [POST] 신규 상담 생성 */
 export const createConsultation = async (data: CreateConsultationRequest): Promise<CreateConsultationResponse> => {
-    return await apiStore.post('/api/v1/consultations', data);
+    return await apiStore.post('/v1/consultations', data);
 };
 
 /** [GET] 전체 상담 목록 조회 */

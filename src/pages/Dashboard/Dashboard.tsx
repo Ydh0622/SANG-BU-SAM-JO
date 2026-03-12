@@ -185,7 +185,7 @@ const Dashboard: React.FC = () => {
                 
             // };
 
-            setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+            // setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
         } catch (error) {
             console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
