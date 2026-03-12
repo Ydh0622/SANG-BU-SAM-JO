@@ -6,7 +6,6 @@ import * as styles from "./Style/CustomerApply.css.ts";
 import { createConsultation } from "../../api/services/consultation";
 import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
 
-// 1. 카테고리 타입 및 데이터 정의 (컴포넌트 외부)
 type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
 
 interface CategoryInfo {
@@ -37,15 +36,20 @@ const CustomerApply: React.FC = () => {
         message: ""   
     });
 
+    // ✅ 매칭 감시 및 자동 이동 로직
     useEffect(() => {
         let checkTimer: number | undefined;
         if (showModal && !isMatched) {
             checkTimer = window.setInterval(() => {
                 const matchStatus = localStorage.getItem("isMatched");
                 if (matchStatus === "true") {
-                    setIsMatched(true);
+                    setIsMatched(true); // 1. 매칭 상태로 변경 (로딩 스피너 작동)
                     if (checkTimer) clearInterval(checkTimer);
-                    setTimeout(() => navigate("/customer/chat"), 1500);
+                    
+                    // 2. 1.5초 뒤 채팅방으로 자동 이동
+                    setTimeout(() => {
+                        navigate("/customer/chat");
+                    }, 1500);
                 }
             }, 1000);
         }
@@ -61,19 +65,12 @@ const CustomerApply: React.FC = () => {
         e.preventDefault();
         if (isSubmitting) return;
 
-        // 2. 가이드에 따른 Validation 기준
-        if (!formData.name.trim()) return alert("이름을 입력해주세요.");
-        if (!formData.phone.trim()) return alert("연락처를 입력해주세요.");
-        
         const selectedCategory = CATEGORY_MAP[formData.category];
         if (!selectedCategory) return alert("문의 카테고리를 선택해주세요.");
-        
-        if (!formData.message.trim()) return alert("상세 내용을 입력해주세요.");
 
         setIsSubmitting(true);
 
         try {
-            // 3. API 요청 규격에 맞춘 페이로드 구성 (any 없음)
             const payload: CreateConsultationRequest = {
                 customerName: formData.name,
                 phone: formData.phone,
@@ -86,13 +83,18 @@ const CustomerApply: React.FC = () => {
 
             const result: CreateConsultationResponse = await createConsultation(payload);
             
-            if (result.success && result.data) {
-                localStorage.setItem("currentConsultationId", result.data.consultationId.toString());
+            // Any 없이 안전한 ID 추출
+            const consultationId = result?.data?.consultationId ?? 
+                                 (result as unknown as { consultationId: number }).consultationId;
+
+            if (consultationId) {
+                localStorage.setItem("currentConsultationId", consultationId.toString());
                 localStorage.setItem("isMatched", "false"); 
-                setShowModal(true);
+                setIsMatched(false);
+                setShowModal(true); // 모달 오픈 (여기서부터 폴링 시작)
             }
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "상담 신청 중 알 수 없는 에러가 발생했습니다.";
+            const message = error instanceof Error ? error.message : "상담 신청 실패";
             alert(message);
         } finally {
             setIsSubmitting(false);
@@ -139,7 +141,7 @@ const CustomerApply: React.FC = () => {
                     <div className={styles.inputGroup}>
                         <label className={styles.label}>문의 카테고리</label>
                         <div className={styles.inputWrapper} style={{ position: 'relative' }}>
-                            <select name="category" value={formData.category} onChange={handleChange} className={styles.input} required style={{ appearance: 'none', background: 'transparent', cursor: 'pointer' }}>
+                            <select name="category" value={formData.category} onChange={handleChange} className={styles.input} required style={{ appearance: 'none', background: 'transparent' }}>
                                 <option value="" disabled>문의 유형을 선택해 주세요</option>
                                 {Object.keys(CATEGORY_MAP).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
@@ -150,7 +152,7 @@ const CustomerApply: React.FC = () => {
                     <div className={styles.inputGroup}>
                         <label className={styles.label}>상세 내용</label>
                         <div className={styles.inputWrapper} style={{ alignItems: 'flex-start', paddingTop: '10px' }}>
-                            <Send size={16} className={styles.inputIcon} style={{ marginTop: '2px' }} />
+                            <Send size={16} className={styles.inputIcon} />
                             <textarea name="message" value={formData.message} onChange={handleChange} placeholder="상담원에게 전달할 메시지를 입력하세요." className={styles.input} style={{ minHeight: '80px', border: 'none', width: '100%', outline: 'none', resize: 'none' }} required />
                         </div>
                     </div>
@@ -158,7 +160,7 @@ const CustomerApply: React.FC = () => {
                     <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
                         {isSubmitting ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                                처리 중... <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                                처리 중... <Loader2 size={20} className="animate-spin" />
                             </div>
                         ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
@@ -169,32 +171,46 @@ const CustomerApply: React.FC = () => {
                 </form>
             </div>
 
+            {/* ✅ 모달: 확인 버튼을 없애고 자동 흐름으로 변경 */}
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
                     <div style={{ backgroundColor: 'white', padding: '40px 30px', borderRadius: '24px', textAlign: 'center', width: '85%', maxWidth: '400px', position: 'relative' }}>
+                        {/* 연결 전에는 X 버튼으로 취소 가능 */}
                         {!isMatched && (
                             <button onClick={closeModal} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
                                 <X size={24} />
                             </button>
                         )}
+
                         {isMatched ? (
                             <>
-                                <Loader2 size={56} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 20px', color: '#E6007E' }} />
-                                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사 연결 완료!</h3>
-                                <p style={{ color: '#6B7280', marginTop: '8px' }}>채팅방으로 이동합니다...</p>
+                                {/* 상담사 수락 시 보여줄 화면 */}
+                                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <Loader2 size={64} className="animate-spin" color="#E6007E" />
+                                        <CheckCircle2 size={24} color="#E6007E" style={{ position: 'absolute', top: '20px', left: '20px' }} />
+                                    </div>
+                                </div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사가 연결되었습니다!</h3>
+                                <p style={{ color: '#6B7280', marginTop: '8px' }}>잠시 후 채팅방으로 입장합니다...</p>
                             </>
                         ) : (
                             <>
-                                <CheckCircle2 size={56} color="#E6007E" style={{ margin: '0 auto 20px' }} />
+                                {/* 대기 중 화면 (확인 버튼 삭제) */}
+                                <Loader2 size={56} className="animate-spin" color="#E6007E" style={{ margin: '0 auto 20px' }} />
                                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담 신청 완료</h3>
-                                <p style={{ color: '#6B7280', marginTop: '8px', marginBottom: '24px' }}>상담사가 수락할 때까지 기다려 주세요.</p>
-                                <button onClick={closeModal} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: '#F3F4F6', color: '#4B5563', fontWeight: 600, border: 'none', cursor: 'pointer' }}>닫기</button>
+                                <p style={{ color: '#6B7280', marginTop: '12px' }}>상담사가 신청 내용을 확인하고 있습니다.</p>
+                                <p style={{ color: '#9CA3AF', fontSize: '14px', marginTop: '4px' }}>연결될 때까지 창을 닫지 마세요.</p>
                             </>
                         )}
                     </div>
                 </div>
             )}
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .animate-spin { animation: spin 1s linear infinite; }
+            `}</style>
         </div>
     );
 };

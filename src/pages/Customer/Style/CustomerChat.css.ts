@@ -49,6 +49,20 @@ export const backBtn = style({
     alignItems: "center",
 });
 
+/** 🏠 홈(Apply) 버튼 스타일 추가 */
+export const homeBtn = style({
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: "8px",
+    color: "#333",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "transform 0.2s",
+    ":active": { transform: "scale(0.9)" },
+});
+
 export const chatArea = style({
     flex: 1,
     padding: "20px",
@@ -64,17 +78,12 @@ const bubbleBase = style({
     padding: "12px 16px",
     fontSize: "15px",
     lineHeight: "1.5",
-    
-    // 1. 너비 결정 방식 수정
-    width: "fit-content",      // 안의 내용물만큼만 너비를 가짐
-    maxWidth: "80%",           // 최대 너비 제한
-    minWidth: "45px",          // 너무 짧아도 동그란 형태 유지
-    
-    // 2. 줄바꿈 제어 (핵심!)
-    whiteSpace: "pre-wrap",    // 공백과 엔터 유지
-    wordBreak: "keep-all",     // 단어 단위로 줄바꿈 (ㅎㅇ가 쪼개지지 않음)
-    overflowWrap: "anywhere",  // 의미 없는 긴 영문일 경우만 끊기
-    
+    width: "fit-content",
+    maxWidth: "80%",
+    minWidth: "45px",
+    whiteSpace: "pre-wrap",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
     animation: `${popIn} 0.3s ease-out`,
 });
 
@@ -160,7 +169,7 @@ export const sendBtn = style({
     }
 });
 
-// 모달 스타일 (동일)
+// 모달 스타일
 export const modalOverlay = style({
     position: "fixed",
     top: 0, left: 0, right: 0, bottom: 0,
@@ -176,10 +185,34 @@ export const modalContent = style({
     backgroundColor: "#FFF",
     padding: "32px",
     borderRadius: "32px",
-    width: "85%",
+    width: "320px", // 휴대폰 프레임 안에서 적절한 너비로 고정
     textAlign: "center",
     boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
     animation: `${popIn} 0.3s ease-out`,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+});
+
+/** 🔘 모달 확인 버튼 스타일 추가 */
+export const modalConfirmBtn = style({
+    width: "100%",
+    marginTop: "24px",
+    padding: "14px",
+    backgroundColor: UPLUS_MAGENTA,
+    color: "white",
+    border: "none",
+    borderRadius: "16px",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "background-color 0.2s",
+    ":hover": {
+        backgroundColor: "#c5006c",
+    },
+    ":active": {
+        transform: "scale(0.98)",
+    }
 });
 
 export const modalTitle = style({

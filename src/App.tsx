@@ -5,7 +5,6 @@ import ConsultationDetail from "./pages/Consultation/ConsultationDetail";
 import ConsultationSearch from "./pages/Search/ConsultationSearch";
 import ConsultationHistory from "./pages/History/ConsultationHistory";
 import NoticeList from "./pages/Notice/NoticeList"; 
-import CustomerService from "./pages/Customer/CustomerService"; 
 import CustomerApply from "./pages/Customer/CustomerApply"; 
 import CustomerChat from "./pages/Customer/CustomerChat"; 
 import MyPage from "./pages/MyPage/MyPage";
@@ -40,13 +39,10 @@ function App() {
                     {/* 8. 마이페이지: 상담사 성과 확인 및 관리 페이지 진입 */}
                     <Route path="/mypage" element={<MyPage />} />
 
-                    {/* 9. 시연용 고객 서비스 입구: 서비스 선택 화면 */}
-                    <Route path="/customer" element={<CustomerService />} />
-
-                    {/* 10.  고객 정보 입력: 채팅 시작 전 이름/연락처 입력 단계 */}
+                    {/* 9.  고객 정보 입력: 채팅 시작 전 이름/연락처 입력 단계 */}
                     <Route path="/customer/apply" element={<CustomerApply />} />
 
-                    {/* 11. 고객용 실시간 채팅 상세: 상담 수락 후 이동하는 화면 */}
+                    {/* 10. 고객용 실시간 채팅 상세: 상담 수락 후 이동하는 화면 */}
                     <Route path="/customer/chat" element={<CustomerChat />} />
                 </Routes>
             </div>

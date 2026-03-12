@@ -27,7 +27,6 @@ import { AxiosError } from "axios";
 import {
     getConsultationDetail,
     sendConsultationMessage,
-    // completeConsultation 대신 endConsultation 임포트
     endConsultation
 } from "../../api/services/consultation";
 import { getSimilarFaq } from "../../api/services/faq";
@@ -79,8 +78,6 @@ const ConsultationDetail: React.FC = () => {
     const [isTyping, setIsTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
-
-    // 상담 종료 결과 코드 상태 (백엔드 finalResultCode 대응)
     const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
     const [waitingCount, setWaitingCount] = useState<number>(() => {
@@ -98,6 +95,28 @@ const ConsultationDetail: React.FC = () => {
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
+
+    // [추가] 실시간 채팅 수신 로직 (Storage Event)
+    useEffect(() => {
+        const handleCustomerChat = (e: StorageEvent) => {
+            if (e.key === "customerMessage" && e.newValue) {
+                const data = JSON.parse(e.newValue);
+                setMessages(prev => {
+                    if (prev.some(msg => msg.id === data.id)) return prev;
+                    return [...prev, {
+                        id: data.id,
+                        sender: 'customer',
+                        text: data.text,
+                        time: data.time
+                    }];
+                });
+                setIsTyping(true);
+                setTimeout(() => setIsTyping(false), 1500);
+            }
+        };
+        window.addEventListener("storage", handleCustomerChat);
+        return () => window.removeEventListener("storage", handleCustomerChat);
+    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => setConsultationTime(prev => prev + 1), 1000);
@@ -143,12 +162,10 @@ const ConsultationDetail: React.FC = () => {
     useEffect(() => {
         const loadDetailAndAssign = async () => {
             if (!customerId) return;
-            let actualData: ExtendedConsultationResponse | null = null;
-
             try {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
-                actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
+                const actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
@@ -161,9 +178,7 @@ const ConsultationDetail: React.FC = () => {
                 });
 
                 const savedCount = localStorage.getItem("realtime_waiting_count");
-                if (savedCount) {
-                    setWaitingCount(Number(savedCount));
-                }
+                if (savedCount) setWaitingCount(Number(savedCount));
 
                 const lastInquiryRaw = localStorage.getItem("lastInquiry");
                 let firstMsgText = actualData.initialMessage || "상담 신청합니다.";
@@ -190,55 +205,39 @@ const ConsultationDetail: React.FC = () => {
         loadDetailAndAssign();
     }, [customerId, fetchSimilarFaqs, navigate]);
 
+    // [수정] 메시지 전송 시 로컬스토리지 전송 로직 포함
     const handleSend = useCallback(async () => {
         if (!inputValue.trim() || !customerId) return;
         const textToSend = inputValue;
+        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const messageId = Date.now();
+        
+        const newMessage: Message = { id: messageId, sender: "agent", text: textToSend, time: now };
+        
         setInputValue("");
-        setMessages((prev) => [...prev, { id: Date.now(), sender: "agent", text: textToSend, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+        setMessages((prev) => [...prev, newMessage]);
+
+        // 시연용 실시간 전송 (상대방 페이지 감지용)
+        localStorage.setItem("agentMessage", JSON.stringify(newMessage));
 
         try {
             await sendConsultationMessage(customerId, textToSend);
-            setIsTyping(true);
-            setTimeout(() => setIsTyping(false), 1500);
         } catch (error) {
-            console.warn("메시지 전송 실패:", error);
+            console.warn("API 전송 실패:", error);
         }
     }, [inputValue, customerId]);
 
-    //  상담 종료 핸들러 로직 변경 
     const handleFinalComplete = async () => {
         if (!customerId) return;
         try {
-            console.log(" [상담 종료 요청 시작]");
-            console.log(" 상담 ID:", customerId);
-            console.log(" 전송 데이터(finalResultCode):", finalResultCode);
-
             setShowExitModal(false);
             setIsLoading(true);
-
-            // API 사양에 맞게 finalResultCode 전송
-            const response = await endConsultation(customerId, {
-                finalResultCode: finalResultCode
-            });
-
-            console.log(" [상담 종료 요청 성공]");
-            console.log(" 서버 응답 데이터:", response);
-
-            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
-
+            await endConsultation(customerId, { finalResultCode: finalResultCode });
+            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry"].forEach(k => localStorage.removeItem(k));
             navigate("/dashboard", { replace: true });
-
         } catch (err) {
             setIsLoading(false);
             const error = err as AxiosError<{ message?: string }>;
-            
-            console.error("[상담 종료 요청 실패]");
-            console.error("에러 메시지:", error.message);
-            if (error.response) {
-                console.error("에러 응답 데이터:", error.response.data);
-                console.error("HTTP 상태 코드:", error.response.status);
-            }
-
             alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
         }
     };
