@@ -272,7 +272,6 @@ const Dashboard: React.FC = () => {
         [navigate, setAssignedCustomer, waitingList.length]
     );
 
-    // 거절 핸들러 수정: 거절한 ID를 기억하고 5초 후 다음 고객 배정
     const handleRejectConsultation = useCallback(() => {
         if (assignedCustomer) {
             const id = (assignedCustomer as unknown as ConsultationResponse).consultationId || 
@@ -295,8 +294,27 @@ const Dashboard: React.FC = () => {
     const handleNotificationClick = (id: number) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     const markAllAsRead = (e: React.MouseEvent) => { e.stopPropagation(); setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))); };
     const handleLogout = useCallback(() => { if (window.confirm("로그아웃 하시겠습니까?")) { localStorage.clear(); navigate("/", { replace: true }); } }, [navigate]); 
-    const handleSaveDashboardMemo = useCallback(() => { if (!memo.trim()) return alert("내용을 입력해주세요."); alert("메모가 저장되었습니다!"); }, [memo]);
+    const handleSaveDashboardMemo = useCallback(() => {
+    if (!memo.trim()) return alert("내용을 입력해주세요.");
 
+    const localData = localStorage.getItem("savedMemos");
+    const prevMemos = localData ? JSON.parse(localData) : [];
+
+    const newMemo = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString(),
+        customer: "대시보드 메모",
+        category: "일반",
+        content: memo.trim(),
+    };
+
+    const updatedMemos = [newMemo, ...prevMemos];
+    localStorage.setItem("savedMemos", JSON.stringify(updatedMemos));
+
+    alert("메모가 저장되었습니다.");
+    setMemo(""); 
+
+}, [memo, setMemo]); 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(timer);
@@ -511,16 +529,56 @@ const Dashboard: React.FC = () => {
                     <div className={styles.premiumModal}>
                         <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
                         <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
+                        
                         <div className={styles.modalCustomerCard}>
-                            <span className={styles.modalCustomerName}>
-                                {(assignedCustomer as unknown as ConsultationResponse).customerName || (assignedCustomer as unknown as ConsultationResponse).customer_name || (assignedCustomer as CustomerInfo).name || "고객"} 님
-                            </span>
-                            <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px' }}>
-                                <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>
-                                    {(assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <span className={styles.modalCustomerName}>
+                                    {(assignedCustomer as unknown as ConsultationResponse).customerName || (assignedCustomer as unknown as ConsultationResponse).customer_name || (assignedCustomer as CustomerInfo).name || "고객"} 님
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
+                                    VIP Platinum
+                                </span>
+                            </div>
+
+                            {/* ✅ 이미지 기반 성향 태그 */}
+                            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                                {["결합할인", "신속해결", "친절선호"].map((tag) => (
+                                    <span key={tag} style={{ 
+                                        fontSize: '11px', 
+                                        padding: '3px 9px', 
+                                        borderRadius: '12px', 
+                                        backgroundColor: '#F3F4F6', 
+                                        color: '#4B5563',
+                                        fontWeight: 600,
+                                        border: '1px solid #E5E7EB'
+                                    }}>
+                                        #{tag}
+                                    </span>
+                                ))}
+                            </div>
+
+                            <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '12px 0' }} />
+
+                            {/* ✅ 이미지 기반 이력 요약 */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                    <span style={{ color: '#6B7280' }}>최근 상담일</span>
+                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>2024.03.12</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                    <span style={{ color: '#6B7280' }}>불만 합계</span>
+                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>0건</span>
+                                </div>
+                            </div>
+
+                            <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px', backgroundColor: '#F9FAFB' }}>
+                                <p style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '4px', fontWeight: 700 }}>실시간 문의 내용</p>
+                                <p className={styles.aiGuideText} style={{ fontWeight: 600, color: '#1A1A1A' }}>
+                                    "{(assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
                                 </p>
                             </div>
                         </div>
+
                         <div className={styles.modalActions} style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
                             <button type="button" className={styles.primaryBtn} style={{ flex: 1 }} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
                             <button type="button" className={styles.secondaryBtn} style={{ flex: 1 }} onClick={handleRejectConsultation}>거절</button>

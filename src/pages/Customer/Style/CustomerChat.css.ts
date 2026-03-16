@@ -49,7 +49,6 @@ export const backBtn = style({
     alignItems: "center",
 });
 
-/** 🏠 홈(Apply) 버튼 스타일 추가 */
 export const homeBtn = style({
     background: "none",
     border: "none",
@@ -73,13 +72,12 @@ export const chatArea = style({
     backgroundColor: "#F9FAFB",
 });
 
-/** ✨ 세로 꺾임 방지 핵심 스타일 */
 const bubbleBase = style({
     padding: "12px 16px",
     fontSize: "15px",
     lineHeight: "1.5",
     width: "fit-content",
-    maxWidth: "80%",
+    maxWidth: "100%", // Wrapper에서 조절하므로 100%로 변경
     minWidth: "45px",
     whiteSpace: "pre-wrap",
     wordBreak: "keep-all",
@@ -87,12 +85,14 @@ const bubbleBase = style({
     animation: `${popIn} 0.3s ease-out`,
 });
 
-/** 내 메시지 (오른쪽 정렬) */
+/** ✅ 내 메시지: 가로 배치 (시간이 왼쪽, 말풍선이 오른쪽) */
 export const myMsgWrapper = style({
     alignSelf: "flex-end", 
     display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end", 
+    flexDirection: "row",      // 가로 정렬
+    alignItems: "flex-end",    // 바닥 기준 정렬
+    gap: "8px",                // 시간과 말풍선 사이 간격
+    maxWidth: "85%",           // 전체 너비 제한
 });
 
 export const myBubble = style([bubbleBase, {
@@ -100,14 +100,17 @@ export const myBubble = style([bubbleBase, {
     color: "#FFF",
     borderRadius: "20px 20px 0 20px", 
     boxShadow: "0 4px 10px rgba(230, 0, 126, 0.15)",
+    order: 2,                  // 말풍선이 뒤로(오른쪽) 가게 함
 }]);
 
-/** 상담사 메시지 (왼쪽 정렬) */
+/** ✅ 상담사 메시지: 가로 배치 (말풍선이 왼쪽, 시간이 오른쪽) */
 export const agentMsgWrapper = style({
     alignSelf: "flex-start", 
     display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start", 
+    flexDirection: "row",      // 가로 정렬
+    alignItems: "flex-end",    // 바닥 기준 정렬
+    gap: "8px",
+    maxWidth: "85%",
 });
 
 export const agentBubble = style([bubbleBase, {
@@ -116,14 +119,19 @@ export const agentBubble = style([bubbleBase, {
     borderRadius: "0 20px 20px 20px", 
     border: "1px solid #E5E7EB",
     boxShadow: "0 2px 5px rgba(0, 0, 0, 0.05)",
+    order: 1,                  // 말풍선이 앞으로(왼쪽) 오게 함
 }]);
 
+/** ✅ 시간 스타일 수정 */
 export const timeLabel = style({
     fontSize: "11px",
     color: "#999",
-    marginTop: "4px",
-    padding: "0 4px",
+    marginBottom: "2px",       // 바닥 정렬 시 살짝 띄움
+    whiteSpace: "nowrap",      // 시간 줄바꿈 방지
+    order: 0,                  // 기본 순서
 });
+
+// 내 시간만 말풍선 왼쪽으로 보내기 위해 별도로 order 설정 가능 (위의 myMsgWrapper/bubble에서 조절됨)
 
 export const inputArea = style({
     padding: "16px 20px 30px", 
@@ -169,7 +177,6 @@ export const sendBtn = style({
     }
 });
 
-// 모달 스타일
 export const modalOverlay = style({
     position: "fixed",
     top: 0, left: 0, right: 0, bottom: 0,
@@ -185,7 +192,7 @@ export const modalContent = style({
     backgroundColor: "#FFF",
     padding: "32px",
     borderRadius: "32px",
-    width: "320px", // 휴대폰 프레임 안에서 적절한 너비로 고정
+    width: "320px",
     textAlign: "center",
     boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
     animation: `${popIn} 0.3s ease-out`,
@@ -194,7 +201,6 @@ export const modalContent = style({
     alignItems: "center",
 });
 
-/** 🔘 모달 확인 버튼 스타일 추가 */
 export const modalConfirmBtn = style({
     width: "100%",
     marginTop: "24px",

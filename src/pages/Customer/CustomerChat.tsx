@@ -143,7 +143,7 @@ const CustomerChat = () => {
                 </div>
             </div>
 
-            {/* [추가] 상담 종료 안내 모달 */}
+            {/*  상담 종료 안내 모달 */}
             {showTerminatedModal && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.modalContent}>

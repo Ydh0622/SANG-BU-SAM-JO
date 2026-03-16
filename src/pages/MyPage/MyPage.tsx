@@ -196,13 +196,30 @@ const MyPage = () => {
                             <div className={styles.memoList}>
                                 {displayMemos.length > 0 ? (
                                     displayMemos.map((memo, index) => (
-                                        <div key={`${memo.id}-${index}`} className={styles.memoItem}>
+                                        <div 
+                                            key={`${memo.id}-${index}`} 
+                                            className={styles.memoItem}
+                                            style={{ position: 'relative', paddingRight: '40px' }} // ✅ 버튼 겹침 방지 여백
+                                        >
                                             <div style={{ flex: 1 }}>
                                                 <p className={styles.memoContent}>
                                                     {memo.content}
                                                 </p>
                                             </div>
-                                            <button onClick={() => handleDeleteMemo(memo.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#94A3B8', marginLeft: '12px' }}>
+                                            {/* ✅ 우측 상단 배치 수정 */}
+                                            <button 
+                                                onClick={() => handleDeleteMemo(memo.id)} 
+                                                style={{ 
+                                                    position: 'absolute',
+                                                    top: '12px',
+                                                    right: '12px',
+                                                    background: 'none', 
+                                                    border: 'none', 
+                                                    cursor: 'pointer', 
+                                                    padding: '4px', 
+                                                    color: '#94A3B8'
+                                                }}
+                                            >
                                                 <X size={18} />
                                             </button>
                                         </div>

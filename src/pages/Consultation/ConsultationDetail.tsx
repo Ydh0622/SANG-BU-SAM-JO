@@ -1,24 +1,6 @@
 import {
-    Clock,
-    Edit3,
-    Eye,
-    EyeOff,
-    Mail,
-    MessageSquare,
-    Phone,
-    Save,
-    Send,
-    Sparkles,
-    Tag,
-    User,
-    Users,
-    Search,
-    ArrowLeft,
-    AlertCircle,
-    CheckCircle,
-    X,
-    FileDown
-} from "lucide-react";
+    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History
+} from "lucide-react"; // Edit3 제거 (미사용)
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -51,18 +33,17 @@ interface FaqItem {
     question: string;
     answer: string;
     similarity_score: number;
+    isSelected?: boolean;
 }
 
 interface FaqResponse {
     recommendations: FaqItem[];
 }
 
-interface ConsultationRecord {
-    customer_request: string;
-    agent_action: string;
-    summary_text: string;
-    issue_type_code: string;
-    resolution_code: string;
+interface RecentHistory {
+    date: string;
+    category: string;
+    summary: string;
 }
 
 const ConsultationDetail: React.FC = () => {
@@ -74,54 +55,35 @@ const ConsultationDetail: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [customerInfo, setCustomerInfo] = useState<ExtendedConsultationResponse | null>(null);
     const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]);
+    
+    // 초기값 유지 (setRecentHistories 미사용 오류 방지를 위해 초기값 할당만 유지)
+    const [recentHistories] = useState<RecentHistory[]>([
+        { date: "2024.03.05", category: "요금제", summary: "5G 다이렉트 65 요금제 변경 및 결합 할인 혜택 재안내" },
+        { date: "2024.02.12", category: "기기변경", summary: "아이폰 15 프로 예약 구매 혜택 및 공시지원금 비교 상담" },
+        { date: "2024.01.20", category: "결합할인", summary: "가족 무한사랑 결합 해지 시 발생 위약금 소급 적용 검토" },
+        { date: "2023.12.15", category: "부가서비스", summary: "VVIP 멤버십 혜택 활용 방법 및 영화 예매권 사용 문의" },
+        { date: "2023.11.02", category: "기타", summary: "해외 로밍 데이터 무제한 요금제 가입 및 차단 설정 완료" }
+    ]);
 
     const [isTyping, setIsTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
     const [showExitModal, setShowExitModal] = useState(false);
     const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
-    const [waitingCount, setWaitingCount] = useState<number>(() => {
+    // setWaitingCount 미사용 오류 해결을 위해 초기값 로직만 사용
+    const [waitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
         return count ? Number(count) : 0;
-    });
-
-    const [record, setRecord] = useState<ConsultationRecord>({
-        customer_request: "요금제 변경 및 가족 결합 할인 적용 요청",
-        agent_action: "본인 확인 후 결합 해지 사유 설명 및 재결합 안내",
-        summary_text: "고객이 기존 결합 해지 후 재결합 과정에서 발생한 위약금 소급 적용을 요청함. 가이드에 따라 처리 완료함.",
-        issue_type_code: "BILL_INQUIRY",
-        resolution_code: "DONE",
     });
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
 
-    // [추가] 실시간 채팅 수신 로직 (Storage Event)
-    useEffect(() => {
-        const handleCustomerChat = (e: StorageEvent) => {
-            if (e.key === "customerMessage" && e.newValue) {
-                const data = JSON.parse(e.newValue);
-                setMessages(prev => {
-                    if (prev.some(msg => msg.id === data.id)) return prev;
-                    return [...prev, {
-                        id: data.id,
-                        sender: 'customer',
-                        text: data.text,
-                        time: data.time
-                    }];
-                });
-                setIsTyping(true);
-                setTimeout(() => setIsTyping(false), 1500);
-            }
-        };
-        window.addEventListener("storage", handleCustomerChat);
-        return () => window.removeEventListener("storage", handleCustomerChat);
-    }, []);
-
-    useEffect(() => {
-        const timer = setInterval(() => setConsultationTime(prev => prev + 1), 1000);
-        return () => clearInterval(timer);
-    }, []);
+    const toggleFaqSelection = (id: string) => {
+        setSimilarFaqs(prev => prev.map(faq => 
+            faq.faq_id === id ? { ...faq, isSelected: !faq.isSelected } : faq
+        ));
+    };
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -132,9 +94,14 @@ const ConsultationDetail: React.FC = () => {
     const fetchSimilarFaqs = useCallback(async (text: string) => {
         if (!text || !text.trim()) return;
         try {
-            const response = await getSimilarFaq(text) as unknown as FaqResponse | FaqItem[];
-            const faqs = Array.isArray(response) ? response : response?.recommendations || [];
-            setSimilarFaqs(faqs);
+            const response = await getSimilarFaq(text);
+            const data = response as unknown as FaqResponse | FaqItem[];
+            const faqs = Array.isArray(data) ? data : data?.recommendations || [];
+            setSimilarFaqs(faqs.map((f, idx) => ({ 
+                ...f, 
+                faq_id: f.faq_id || `faq-${idx}-${Date.now()}`,
+                isSelected: false 
+            })));
         } catch (error) {
             console.error("FAQ 로드 실패:", error);
         }
@@ -164,8 +131,11 @@ const ConsultationDetail: React.FC = () => {
             if (!customerId) return;
             try {
                 setIsLoading(true);
-                const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
-                const actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
+                const response = await getConsultationDetail(customerId);
+                
+                // AxiosResponse 타입 에러 해결을 위해 unknown을 거쳐 변환
+                const resObj = response as unknown as { data: ExtendedConsultationResponse };
+                const actualData = (resObj && resObj.data) ? resObj.data : (response as unknown as ExtendedConsultationResponse);
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
@@ -176,9 +146,6 @@ const ConsultationDetail: React.FC = () => {
                     contact_info: customerData?.phone || actualData.contact_info || "010-0000-0000",
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
-
-                const savedCount = localStorage.getItem("realtime_waiting_count");
-                if (savedCount) setWaitingCount(Number(savedCount));
 
                 const lastInquiryRaw = localStorage.getItem("lastInquiry");
                 let firstMsgText = actualData.initialMessage || "상담 신청합니다.";
@@ -205,21 +172,14 @@ const ConsultationDetail: React.FC = () => {
         loadDetailAndAssign();
     }, [customerId, fetchSimilarFaqs, navigate]);
 
-    // [수정] 메시지 전송 시 로컬스토리지 전송 로직 포함
     const handleSend = useCallback(async () => {
         if (!inputValue.trim() || !customerId) return;
         const textToSend = inputValue;
         const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const messageId = Date.now();
-        
-        const newMessage: Message = { id: messageId, sender: "agent", text: textToSend, time: now };
-        
+        const newMessage: Message = { id: Date.now(), sender: "agent", text: textToSend, time: now };
         setInputValue("");
         setMessages((prev) => [...prev, newMessage]);
-
-        // 시연용 실시간 전송 (상대방 페이지 감지용)
         localStorage.setItem("agentMessage", JSON.stringify(newMessage));
-
         try {
             await sendConsultationMessage(customerId, textToSend);
         } catch (error) {
@@ -233,7 +193,7 @@ const ConsultationDetail: React.FC = () => {
             setShowExitModal(false);
             setIsLoading(true);
             await endConsultation(customerId, { finalResultCode: finalResultCode });
-            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry"].forEach(k => localStorage.removeItem(k));
+            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
             navigate("/dashboard", { replace: true });
         } catch (err) {
             setIsLoading(false);
@@ -241,6 +201,32 @@ const ConsultationDetail: React.FC = () => {
             alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
         }
     };
+
+    useEffect(() => {
+        const handleCustomerChat = (e: StorageEvent) => {
+            if (e.key === "customerMessage" && e.newValue) {
+                const data = JSON.parse(e.newValue);
+                setMessages(prev => {
+                    if (prev.some(msg => msg.id === data.id)) return prev;
+                    return [...prev, {
+                        id: data.id,
+                        sender: 'customer',
+                        text: data.text,
+                        time: data.time
+                    }];
+                });
+                setIsTyping(true);
+                setTimeout(() => setIsTyping(false), 1500);
+            }
+        };
+        window.addEventListener("storage", handleCustomerChat);
+        return () => window.removeEventListener("storage", handleCustomerChat);
+    }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => setConsultationTime(prev => prev + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -270,7 +256,7 @@ const ConsultationDetail: React.FC = () => {
             </header>
 
             <div className={styles.mainLayout}>
-                <aside className={styles.sideSection}>
+                <aside className={styles.sideSection} style={{ flex: '0 0 350px' }}>
                     <article className={styles.card}>
                         <div className={styles.cardHeader}>
                             <h3 className={styles.cardTitle}>고객 정보</h3>
@@ -295,19 +281,19 @@ const ConsultationDetail: React.FC = () => {
                     </article>
 
                     <article className={styles.card}>
-                        <h3 className={styles.cardTitle}><Edit3 size={18} color="#E6007E" /> AI 실시간 요약</h3>
-                        <textarea
-                            className={styles.memoArea}
-                            value={record.summary_text}
-                            onChange={(e) => setRecord({ ...record, summary_text: e.target.value })}
-                        />
-                        <div className={styles.aiGlowText}>
-                            <Sparkles size={12} color="#E6007E" /> 실시간 분석 중
+                        <h3 className={styles.cardTitle}><Sparkles size={18} color="#E6007E" /> 고객 성향 분석</h3>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                            <span style={{ backgroundColor: '#FFF0F6', color: '#E6007E', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>#신속한처리</span>
+                            <span style={{ backgroundColor: '#F0F7FF', color: '#0056B3', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>#결합할인_관심</span>
+                            <span style={{ backgroundColor: '#F6FFED', color: '#389E0D', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>#매너우수</span>
                         </div>
+                        <p style={{ fontSize: '12px', color: '#666', lineHeight: '1.5', margin: 0 }}>
+                            용건 위주의 간결한 설명을 선호하며, 현재 결합 할인 혜택 누락 여부에 민감함.
+                        </p>
                     </article>
                 </aside>
 
-                <section className={styles.chatSection}>
+                <section className={styles.chatSection} style={{ flex: '1' }}>
                     <div className={styles.messageList} ref={scrollRef}>
                         {messages.map((msg) => (
                             <div key={msg.id} className={msg.sender === "customer" ? styles.customerMsg : styles.agentMsg}>
@@ -347,20 +333,57 @@ const ConsultationDetail: React.FC = () => {
                     </footer>
                 </section>
 
-                <aside className={styles.sideSection}>
+                <aside className={styles.sideSection} style={{ flex: '0 0 380px' }}>
                     <article className={styles.statCard}>
                         <h3 className={styles.cardTitle}><Users size={20} color="#E6007E" /> 실시간 대기</h3>
                         <div className={styles.waitNumber}><strong>{waitingCount}</strong> <span>명</span></div>
                     </article>
+
                     <article className={styles.card}>
-                        <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 유사 FAQ 추천</h3>
+                        <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 사전 FAQ 결과</h3>
                         <div className={styles.faqWrapper}>
-                            {similarFaqs.length > 0 ? similarFaqs.map((faq, index) => (
-                                <div key={`faq-${faq.faq_id || index}`} className={styles.faqItem}>
-                                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>Q. {faq.question}</p>
-                                    <button type="button" className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
+                            {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
+                                <div key={faq.faq_id} 
+                                     className={styles.faqItem} 
+                                     style={{ 
+                                         display: 'flex', 
+                                         alignItems: 'flex-start', 
+                                         gap: '8px', 
+                                         padding: '10px', 
+                                         borderBottom: '1px solid #f0f0f0',
+                                         backgroundColor: faq.isSelected ? '#FFF5F9' : 'transparent',
+                                         cursor: 'pointer'
+                                     }}
+                                     onClick={() => toggleFaqSelection(faq.faq_id)}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={!!faq.isSelected} 
+                                        onChange={() => toggleFaqSelection(faq.faq_id)}
+                                        style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#E6007E' }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>Q. {faq.question}</p>
+                                        <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>A. {faq.answer}</p>
+                                    </div>
                                 </div>
-                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>추천 FAQ가 없습니다.</p>}
+                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>데이터가 없습니다.</p>}
+                        </div>
+                    </article>
+
+                    <article className={styles.card} style={{ marginTop: '16px' }}>
+                        <h3 className={styles.cardTitle}><History size={18} color="#E6007E" style={{ marginRight: '6px' }} /> 최근 상담 내역</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                            {recentHistories.map((item, idx) => (
+                                <div key={`history-${idx}`} style={{ 
+                                    padding: '10px', backgroundColor: '#F7F8F9', borderRadius: '10px', border: '1px solid #EDEDED'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span style={{ fontSize: '11px', color: '#999' }}>{item.date}</span>
+                                        <span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 700 }}>{item.category}</span>
+                                    </div>
+                                    <p style={{ fontSize: '12px', color: '#444', margin: 0, lineHeight: '1.4' }}>{item.summary}</p>
+                                </div>
+                            ))}
                         </div>
                     </article>
                 </aside>
@@ -382,23 +405,13 @@ const ConsultationDetail: React.FC = () => {
                                 <select 
                                     value={finalResultCode} 
                                     onChange={(e) => setFinalResultCode(e.target.value)}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '10px', 
-                                        borderRadius: '8px', 
-                                        border: '1px solid #ddd',
-                                        marginTop: '8px'
-                                    }}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '8px' }}
                                 >
                                     <option value="DONE">처리 완료</option>
                                     <option value="TRANSFERRED">부서 이관</option>
                                     <option value="FOLLOW_UP">추후 재통화</option>
                                     <option value="CANCELLED">상담 취소</option>
                                 </select>
-                            </div>
-                            <div className={styles.fieldGroup}>
-                                <label><Edit3 size={14} /> AI 최종 상담 요약 (참고용)</label>
-                                <textarea value={record.summary_text} onChange={(e) => setRecord({...record, summary_text: e.target.value})} />
                             </div>
                         </div>
                         <div className={styles.modalFooter}>
