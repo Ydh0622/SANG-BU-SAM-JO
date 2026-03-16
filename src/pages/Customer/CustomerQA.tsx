@@ -3,22 +3,20 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Search, MessageCircle, Check, X, ArrowLeft } from "lucide-react"; 
 import * as styles from "./Style/CustomerQA.css.ts";
 
-// 데이터 타입 정의
 interface CustomerFormData {
   name: string;
   message: string;
   category: string;
 }
 
-// 피드백 타입 정의
 type FeedbackStatus = "like" | "dislike" | null;
 
 const CustomerQA: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // 각 FAQ ID별 피드백 상태 관리 ({ 1: "like", 2: "dislike" ... })
-    const [feedbacks, setFeedbacks] = useState<Record<number, FeedbackStatus>>({});
+    const [feedbacks, setFeedbacks] = useState<Record<string | number, FeedbackStatus>>({});
+    const aiFeedback = feedbacks["AI"];
 
     const state = location.state as { formData: CustomerFormData } | null;
     const formData = state?.formData || { 
@@ -33,10 +31,11 @@ const CustomerQA: React.FC = () => {
         { id: 3, q: "가족 결합 할인이 가능한가요?", a: "U+ 앱에서 증빙서류 등록 후 바로 신청이 가능합니다." }
     ];
 
-    // 모든 항목이 선택되었는지 확인
-    const isAllSelected = faqList.every(faq => feedbacks[faq.id] !== undefined && feedbacks[faq.id] !== null);
+    const isAllSelected = 
+        faqList.every(faq => feedbacks[faq.id] !== undefined && feedbacks[faq.id] !== null) &&
+        feedbacks["AI"] !== undefined && feedbacks["AI"] !== null;
 
-    const handleFeedback = (id: number, status: FeedbackStatus) => {
+    const handleFeedback = (id: string | number, status: FeedbackStatus) => {
         setFeedbacks(prev => ({
             ...prev,
             [id]: prev[id] === status ? null : status
@@ -61,7 +60,36 @@ const CustomerQA: React.FC = () => {
                     <div style={{ width: '100%', minHeight: '120px', border: '1px solid #D1D5DB', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', marginBottom: '8px' }}>
                         <span style={{ color: '#9CA3AF', fontSize: '14px' }}>(상세 문의에 대한 분석 답변 API 연결 예정)</span>
                     </div>
-                    <p style={{ fontSize: '12px', color: '#6B7280', textAlign: 'left', marginBottom: '24px' }}>AI 분석 답변</p>
+
+                    {/* --- AI 분석 답변 글자 + 버튼 세트 --- */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                        <p style={{ fontSize: '12px', color: '#6B7280', margin: 0 }}>AI 분석 답변</p>
+                        
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                                onClick={() => handleFeedback("AI", "like")}
+                                style={{
+                                    width: '28px', height: '28px', borderRadius: '6px', border: '1px solid',
+                                    borderColor: aiFeedback === 'like' ? '#E6007E' : '#D1D5DB',
+                                    backgroundColor: aiFeedback === 'like' ? '#E6007E' : '#fff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                                }}
+                            >
+                                <Check size={14} color={aiFeedback === 'like' ? '#fff' : '#D1D5DB'} strokeWidth={3} />
+                            </button>
+                            <button
+                                onClick={() => handleFeedback("AI", "dislike")}
+                                style={{
+                                    width: '28px', height: '28px', borderRadius: '6px', border: '1px solid',
+                                    borderColor: aiFeedback === 'dislike' ? '#374151' : '#D1D5DB',
+                                    backgroundColor: aiFeedback === 'dislike' ? '#374151' : '#fff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                                }}
+                            >
+                                <X size={14} color={aiFeedback === 'dislike' ? '#fff' : '#D1D5DB'} strokeWidth={3} />
+                            </button>
+                        </div>
+                    </div>
 
                     <hr style={{ border: '0', borderTop: '1px solid #F3F4F6', marginBottom: '24px' }} />
 
@@ -92,7 +120,6 @@ const CustomerQA: React.FC = () => {
                                     </div>
                                 </div>
                                 
-                                {/* V / X 버튼 세트 */}
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <button
                                         onClick={() => handleFeedback(faq.id, "like")}
@@ -135,7 +162,7 @@ const CustomerQA: React.FC = () => {
                         onClick={() => {
                             if (!isAllSelected) return;
                             const selectedFaqContent = faqList.filter(faq => feedbacks[faq.id] === 'like');
-                            navigate("/customer/summary", { state: { formData, selectedFaqContent } });
+                            navigate("/customer/summary", { state: { formData, selectedFaqContent, aiFeedback: feedbacks["AI"] } });
                         }}
                         className={styles.submitBtn} 
                         style={{ 

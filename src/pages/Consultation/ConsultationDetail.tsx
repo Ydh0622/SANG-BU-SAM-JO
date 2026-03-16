@@ -1,5 +1,5 @@
 import {
-    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History
+    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History, Check
 } from "lucide-react"; 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,10 +15,16 @@ import { getSimilarFaq } from "../../api/services/faq";
 import type { ConsultationResponse } from "../../types/consultation";
 import * as styles from "./Style/Consultation.css.ts";
 
+// --- Types & Interfaces ---
+
 interface ExtendedConsultationResponse extends ConsultationResponse {
     email?: string;
     initialMessage?: string;
     customerName?: string;
+}
+
+interface ConsultationDetailResponse {
+    data: ExtendedConsultationResponse;
 }
 
 interface Message {
@@ -45,6 +51,8 @@ interface RecentHistory {
     category: string;
     summary: string;
 }
+
+// --- Component ---
 
 const ConsultationDetail: React.FC = () => {
     const { customerId } = useParams<{ customerId: string }>();
@@ -77,12 +85,20 @@ const ConsultationDetail: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
 
-    const toggleFaqSelection = (id: string) => {
-        setSimilarFaqs(prev => prev.map(faq => 
-            faq.faq_id === id ? { ...faq, isSelected: !faq.isSelected } : faq
-        ));
-    };
-
+    // FAQ 선택 핸들러 (V 클릭 시 true, X 클릭 시 false)
+  // FAQ 선택 핸들러 수정
+const handleSelectFaq = (id: string, status: boolean) => {
+    setSimilarFaqs(prev => prev.map(faq => {
+        if (faq.faq_id === id) {
+            // 이미 선택된 상태(status)와 클릭한 상태가 같으면 취소(undefined), 아니면 변경
+            return { 
+                ...faq, 
+                isSelected: faq.isSelected === status ? undefined : status 
+            };
+        }
+        return faq;
+    }));
+};
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -98,7 +114,7 @@ const ConsultationDetail: React.FC = () => {
             setSimilarFaqs(faqs.map((f, idx) => ({ 
                 ...f, 
                 faq_id: f.faq_id || `faq-${idx}-${Date.now()}`,
-                isSelected: false 
+                isSelected: undefined // 초기 상태는 미선택
             })));
         } catch (error) {
             console.error("FAQ 로드 실패:", error);
@@ -131,7 +147,7 @@ const ConsultationDetail: React.FC = () => {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId);
                 
-                const resObj = response as unknown as { data: ExtendedConsultationResponse };
+                const resObj = response as unknown as ConsultationDetailResponse;
                 const actualData = (resObj && resObj.data) ? resObj.data : (response as unknown as ExtendedConsultationResponse);
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
@@ -184,7 +200,6 @@ const ConsultationDetail: React.FC = () => {
         }
     }, [inputValue, customerId]);
 
-    // === 수정한 한 줄 문의 내용 전송 로직 ===
     const handleFinalComplete = async () => {
         if (!customerId || !customerInfo) return;
         
@@ -192,29 +207,22 @@ const ConsultationDetail: React.FC = () => {
             setShowExitModal(false);
             setIsLoading(true);
 
-            // 1. 문의 내용(첫 메시지) 가공
             const firstCustomerMsg = messages.find(m => m.sender === "customer")?.text || "문의 내용 없음";
             const inquirySummary = firstCustomerMsg
                 .replace(/\n/g, ' ') 
                 .trim()
                 .substring(0, 50) + (firstCustomerMsg.length > 50 ? "..." : "");
 
-            // 2. 서버로 보낼 Payload 구성 (이름 + 한줄 문의내용 포함)
             const payload = {
                 finalResultCode: finalResultCode,
                 customerName: customerInfo.customer_name,
                 consultationContent: inquirySummary 
             };
 
-            // 3. API 호출
             await endConsultation(customerId, payload);
-
-            // 4. 비동기 처리 대기 (1초)
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // 5. 로컬스토리지 정리 및 이동
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
-            
             navigate("/search", { replace: true });
 
         } catch (err) {
@@ -278,6 +286,7 @@ const ConsultationDetail: React.FC = () => {
             </header>
 
             <div className={styles.mainLayout}>
+                {/* 왼쪽 사이드 - 고객 정보 */}
                 <aside className={styles.sideSection} style={{ flex: '0 0 350px' }}>
                     <article className={styles.card}>
                         <div className={styles.cardHeader}>
@@ -315,6 +324,7 @@ const ConsultationDetail: React.FC = () => {
                     </article>
                 </aside>
 
+                {/* 중앙 - 채팅 영역 */}
                 <section className={styles.chatSection} style={{ flex: '1' }}>
                     <div className={styles.messageList} ref={scrollRef}>
                         {messages.map((msg) => (
@@ -355,6 +365,7 @@ const ConsultationDetail: React.FC = () => {
                     </footer>
                 </section>
 
+                {/* 오른쪽 사이드 - FAQ & 히스토리 */}
                 <aside className={styles.sideSection} style={{ flex: '0 0 380px' }}>
                     <article className={styles.statCard}>
                         <h3 className={styles.cardTitle}><Users size={20} color="#E6007E" /> 실시간 대기</h3>
@@ -368,27 +379,51 @@ const ConsultationDetail: React.FC = () => {
                                 <div key={faq.faq_id} 
                                      className={styles.faqItem} 
                                      style={{ 
-                                         display: 'flex', 
-                                         alignItems: 'flex-start', 
-                                         gap: '8px', 
-                                         padding: '10px', 
+                                         position: 'relative',
+                                         padding: '16px', 
                                          borderBottom: '1px solid #f0f0f0',
-                                         backgroundColor: faq.isSelected ? '#FFF5F9' : 'transparent',
-                                         cursor: 'pointer'
-                                     }}
-                                     onClick={() => toggleFaqSelection(faq.faq_id)}>
-                                    <input 
-                                        type="checkbox" 
-                                        checked={!!faq.isSelected} 
-                                        readOnly
-                                        style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#E6007E' }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>Q. {faq.question}</p>
-                                        <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>A. {faq.answer}</p>
+                                         backgroundColor: faq.isSelected === true ? '#F0F7FF' : faq.isSelected === false ? '#FFF1F0' : 'transparent',
+                                         transition: 'all 0.2s ease'
+                                     }}>
+                                    
+                                    {/* 이미지 레이아웃 반영: 우측 상단 V / X 버튼 */}
+                                    <div style={{ 
+                                        position: 'absolute', 
+                                        top: '12px', 
+                                        right: '12px', 
+                                        display: 'flex', 
+                                        gap: '6px' 
+                                    }}>
+                                        <button 
+                                            onClick={() => handleSelectFaq(faq.faq_id, true)}
+                                            style={{
+                                                width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #d9d9d9',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                                backgroundColor: faq.isSelected === true ? '#52c41a' : '#fff',
+                                                color: faq.isSelected === true ? '#fff' : '#d9d9d9'
+                                            }}
+                                        >
+                                            <Check size={14} strokeWidth={3} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleSelectFaq(faq.faq_id, false)}
+                                            style={{
+                                                width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #d9d9d9',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                                backgroundColor: faq.isSelected === false ? '#ff4d4f' : '#fff',
+                                                color: faq.isSelected === false ? '#fff' : '#d9d9d9'
+                                            }}
+                                        >
+                                            <X size={14} strokeWidth={3} />
+                                        </button>
+                                    </div>
+
+                                    <div style={{ paddingRight: '60px' }}>
+                                        <p style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>{faq.question}</p>
+                                        <p style={{ fontSize: '13px', color: '#666', margin: 0, lineHeight: '1.5' }}>{faq.answer}</p>
                                     </div>
                                 </div>
-                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>데이터가 없습니다.</p>}
+                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', padding: '20px' }}>데이터가 없습니다.</p>}
                         </div>
                     </article>
 
@@ -411,6 +446,7 @@ const ConsultationDetail: React.FC = () => {
                 </aside>
             </div>
 
+            {/* 상담 종료 모달 */}
             {showExitModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowExitModal(false)}>
                     <div className={styles.exitModal} onClick={e => e.stopPropagation()}>

@@ -171,7 +171,7 @@ globalStyle(`${waitNumber} strong`, { fontSize: "24px", fontWeight: 900, color: 
 globalStyle(`${waitNumber} span`, { fontSize: "12px", color: UPLUS_MAGENTA, fontWeight: 700 });
 
 export const faqWrapper = style({ display: "flex", flexDirection: "column", gap: "12px" });
-export const faqItem = style({ padding: "16px", borderRadius: "12px", backgroundColor: "#F9FAFB", border: "1px solid #E5E7EB", transition: "all 0.2s", ":hover": { borderColor: UPLUS_MAGENTA, backgroundColor: "#FFF" } });
+export const faqItem = style({ padding: "16px", borderRadius: "12px", backgroundColor: "#F9FAFB", border: "1px solid #E5E7EB", transition: "all 0.2s", ":hover": { backgroundColor: "#FFF" } });
 export const faqQuestion = style({ fontSize: "14.5px", fontWeight: 700, color: "#374151", marginBottom: "8px", lineHeight: "1.5" });
 
 export const modalOverlay = style({ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(4px)", animation: `${fadeIn} 0.2s ease` });
