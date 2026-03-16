@@ -1,6 +1,6 @@
 import {
     Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History
-} from "lucide-react"; // Edit3 제거 (미사용)
+} from "lucide-react"; 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -56,7 +56,6 @@ const ConsultationDetail: React.FC = () => {
     const [customerInfo, setCustomerInfo] = useState<ExtendedConsultationResponse | null>(null);
     const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]);
     
-    // 초기값 유지 (setRecentHistories 미사용 오류 방지를 위해 초기값 할당만 유지)
     const [recentHistories] = useState<RecentHistory[]>([
         { date: "2024.03.05", category: "요금제", summary: "5G 다이렉트 65 요금제 변경 및 결합 할인 혜택 재안내" },
         { date: "2024.02.12", category: "기기변경", summary: "아이폰 15 프로 예약 구매 혜택 및 공시지원금 비교 상담" },
@@ -70,7 +69,6 @@ const ConsultationDetail: React.FC = () => {
     const [showExitModal, setShowExitModal] = useState(false);
     const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
-    // setWaitingCount 미사용 오류 해결을 위해 초기값 로직만 사용
     const [waitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
         return count ? Number(count) : 0;
@@ -133,7 +131,6 @@ const ConsultationDetail: React.FC = () => {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId);
                 
-                // AxiosResponse 타입 에러 해결을 위해 unknown을 거쳐 변환
                 const resObj = response as unknown as { data: ExtendedConsultationResponse };
                 const actualData = (resObj && resObj.data) ? resObj.data : (response as unknown as ExtendedConsultationResponse);
 
@@ -187,14 +184,39 @@ const ConsultationDetail: React.FC = () => {
         }
     }, [inputValue, customerId]);
 
+    // === 수정한 한 줄 문의 내용 전송 로직 ===
     const handleFinalComplete = async () => {
-        if (!customerId) return;
+        if (!customerId || !customerInfo) return;
+        
         try {
             setShowExitModal(false);
             setIsLoading(true);
-            await endConsultation(customerId, { finalResultCode: finalResultCode });
+
+            // 1. 문의 내용(첫 메시지) 가공
+            const firstCustomerMsg = messages.find(m => m.sender === "customer")?.text || "문의 내용 없음";
+            const inquirySummary = firstCustomerMsg
+                .replace(/\n/g, ' ') 
+                .trim()
+                .substring(0, 50) + (firstCustomerMsg.length > 50 ? "..." : "");
+
+            // 2. 서버로 보낼 Payload 구성 (이름 + 한줄 문의내용 포함)
+            const payload = {
+                finalResultCode: finalResultCode,
+                customerName: customerInfo.customer_name,
+                consultationContent: inquirySummary 
+            };
+
+            // 3. API 호출
+            await endConsultation(customerId, payload);
+
+            // 4. 비동기 처리 대기 (1초)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // 5. 로컬스토리지 정리 및 이동
             ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
-            navigate("/dashboard", { replace: true });
+            
+            navigate("/search", { replace: true });
+
         } catch (err) {
             setIsLoading(false);
             const error = err as AxiosError<{ message?: string }>;
@@ -358,7 +380,7 @@ const ConsultationDetail: React.FC = () => {
                                     <input 
                                         type="checkbox" 
                                         checked={!!faq.isSelected} 
-                                        onChange={() => toggleFaqSelection(faq.faq_id)}
+                                        readOnly
                                         style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#E6007E' }}
                                     />
                                     <div style={{ flex: 1 }}>
@@ -410,7 +432,7 @@ const ConsultationDetail: React.FC = () => {
                                     <option value="DONE">처리 완료</option>
                                     <option value="TRANSFERRED">부서 이관</option>
                                     <option value="FOLLOW_UP">추후 재통화</option>
-                                    <option value="CANCELLED">상담 취소</option>
+                                    <option value="PENDING">기록 대기</option>
                                 </select>
                             </div>
                         </div>

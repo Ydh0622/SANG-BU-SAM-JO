@@ -261,7 +261,7 @@ const ConsultationSearch: React.FC = () => {
                                         <th>상담 ID</th>
                                         <th>고객명</th>
                                         <th>상담 카테고리</th>
-                                        <th>상세 내용</th>
+                                        <th>문의 내용</th>
                                         <th>담당자</th>
                                         <th>처리 상태</th>
                                         <th>상세</th>

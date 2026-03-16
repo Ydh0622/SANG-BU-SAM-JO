@@ -1,22 +1,25 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Search, MessageCircle, Check, ArrowLeft } from "lucide-react"; 
+import { Search, MessageCircle, Check, X, ArrowLeft } from "lucide-react"; 
 import * as styles from "./Style/CustomerQA.css.ts";
 
-// 1. 데이터 타입 정의
+// 데이터 타입 정의
 interface CustomerFormData {
   name: string;
   message: string;
   category: string;
 }
 
+// 피드백 타입 정의
+type FeedbackStatus = "like" | "dislike" | null;
+
 const CustomerQA: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    const [selectedFaqs, setSelectedFaqs] = useState<number[]>([]);
+    // 각 FAQ ID별 피드백 상태 관리 ({ 1: "like", 2: "dislike" ... })
+    const [feedbacks, setFeedbacks] = useState<Record<number, FeedbackStatus>>({});
 
-    // location.state 타입 안전하게 가져오기
     const state = location.state as { formData: CustomerFormData } | null;
     const formData = state?.formData || { 
         name: "고객", 
@@ -30,10 +33,14 @@ const CustomerQA: React.FC = () => {
         { id: 3, q: "가족 결합 할인이 가능한가요?", a: "U+ 앱에서 증빙서류 등록 후 바로 신청이 가능합니다." }
     ];
 
-    const toggleFaq = (id: number) => {
-        setSelectedFaqs(prev => 
-            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-        );
+    // 모든 항목이 선택되었는지 확인
+    const isAllSelected = faqList.every(faq => feedbacks[faq.id] !== undefined && feedbacks[faq.id] !== null);
+
+    const handleFeedback = (id: number, status: FeedbackStatus) => {
+        setFeedbacks(prev => ({
+            ...prev,
+            [id]: prev[id] === status ? null : status
+        }));
     };
 
     return (
@@ -69,30 +76,46 @@ const CustomerQA: React.FC = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '30px' }}>
                     {faqList.map((faq) => {
-                        const isSelected = selectedFaqs.includes(faq.id);
+                        const currentStatus = feedbacks[faq.id];
                         return (
                             <div 
                                 key={faq.id} 
-                                onClick={() => toggleFaq(faq.id)}
-                                className={`${styles.qaItem} ${isSelected ? styles.qaItemActive : ""}`}
+                                className={styles.qaItem}
+                                style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}
                             >
-                                <div style={{ 
-                                    minWidth: '24px', height: '24px', borderRadius: '6px', 
-                                    border: `2px solid ${isSelected ? '#E6007E' : '#D1D5DB'}`,
-                                    backgroundColor: isSelected ? '#E6007E' : '#fff',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '2px'
-                                }}>
-                                    {isSelected && <Check size={16} color="#fff" strokeWidth={3} />}
-                                </div>
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '15px', fontWeight: isSelected ? '700' : '500', color: isSelected ? '#E6007E' : '#374151' }}>
+                                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#374151' }}>
                                         {faq.q}
                                     </div>
-                                    {isSelected && (
-                                        <div style={{ fontSize: '14px', color: '#4B5563', marginTop: '10px', lineHeight: '1.5' }}>
-                                            {faq.a}
-                                        </div>
-                                    )}
+                                    <div style={{ fontSize: '14px', color: '#4B5563', marginTop: '8px', lineHeight: '1.5' }}>
+                                        {faq.a}
+                                    </div>
+                                </div>
+                                
+                                {/* V / X 버튼 세트 */}
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                        onClick={() => handleFeedback(faq.id, "like")}
+                                        style={{
+                                            width: '32px', height: '32px', borderRadius: '8px', border: '1px solid',
+                                            borderColor: currentStatus === 'like' ? '#E6007E' : '#D1D5DB',
+                                            backgroundColor: currentStatus === 'like' ? '#E6007E' : '#fff',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Check size={18} color={currentStatus === 'like' ? '#fff' : '#D1D5DB'} strokeWidth={3} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleFeedback(faq.id, "dislike")}
+                                        style={{
+                                            width: '32px', height: '32px', borderRadius: '8px', border: '1px solid',
+                                            borderColor: currentStatus === 'dislike' ? '#374151' : '#D1D5DB',
+                                            backgroundColor: currentStatus === 'dislike' ? '#374151' : '#fff',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                                        }}
+                                    >
+                                        <X size={18} color={currentStatus === 'dislike' ? '#fff' : '#D1D5DB'} strokeWidth={3} />
+                                    </button>
                                 </div>
                             </div>
                         );
@@ -107,17 +130,28 @@ const CustomerQA: React.FC = () => {
                         <ArrowLeft size={18} /> 이전
                     </button>
                     
-                    {/* Summary 페이지로 데이터 전달하며 이동 */}
                     <button 
+                        disabled={!isAllSelected}
                         onClick={() => {
-                            const selectedFaqContent = faqList.filter(faq => selectedFaqs.includes(faq.id));
+                            if (!isAllSelected) return;
+                            const selectedFaqContent = faqList.filter(faq => feedbacks[faq.id] === 'like');
                             navigate("/customer/summary", { state: { formData, selectedFaqContent } });
                         }}
                         className={styles.submitBtn} 
-                        style={{ flex: 2, height: '56px' }}
+                        style={{ 
+                            flex: 2, 
+                            height: '56px',
+                            backgroundColor: isAllSelected ? '#E6007E' : '#D1D5DB',
+                            cursor: isAllSelected ? 'pointer' : 'not-allowed',
+                            border: 'none',
+                            color: '#fff',
+                            borderRadius: '14px',
+                            fontWeight: 'bold',
+                            transition: 'all 0.2s'
+                        }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                            상담 내용 확인하기 <MessageCircle size={20} />
+                            {isAllSelected ? "상담 내용 확인하기" : "답변을 모두 평가해주세요"} <MessageCircle size={20} />
                         </div>
                     </button>
                 </div>
