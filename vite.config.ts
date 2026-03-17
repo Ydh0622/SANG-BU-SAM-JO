@@ -29,7 +29,7 @@ export default defineConfig({
         secure: false,
       },
  
-      "/fast": {
+      "/fastapi": {
         target: "http://localhost:8000",
         changeOrigin: true,
         secure: false,

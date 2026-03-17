@@ -86,11 +86,9 @@ const ConsultationDetail: React.FC = () => {
     const [inputValue, setInputValue] = useState("");
 
     // FAQ 선택 핸들러 (V 클릭 시 true, X 클릭 시 false)
-  // FAQ 선택 핸들러 수정
 const handleSelectFaq = (id: string, status: boolean) => {
     setSimilarFaqs(prev => prev.map(faq => {
         if (faq.faq_id === id) {
-            // 이미 선택된 상태(status)와 클릭한 상태가 같으면 취소(undefined), 아니면 변경
             return { 
                 ...faq, 
                 isSelected: faq.isSelected === status ? undefined : status 
@@ -114,7 +112,7 @@ const handleSelectFaq = (id: string, status: boolean) => {
             setSimilarFaqs(faqs.map((f, idx) => ({ 
                 ...f, 
                 faq_id: f.faq_id || `faq-${idx}-${Date.now()}`,
-                isSelected: undefined // 초기 상태는 미선택
+                isSelected: undefined 
             })));
         } catch (error) {
             console.error("FAQ 로드 실패:", error);

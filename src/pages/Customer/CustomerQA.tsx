@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Search, MessageCircle, Check, X, ArrowLeft } from "lucide-react"; 
+import { Search, MessageCircle, Check, X, ArrowLeft, Sparkles } from "lucide-react"; 
 import * as styles from "./Style/CustomerQA.css.ts";
+import { getSimilarFaq } from "../../api/services/faq";
+import type { FaqItem } from "../../api/services/faq";
 
 interface CustomerFormData {
   name: string;
@@ -15,31 +17,88 @@ const CustomerQA: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    const [feedbacks, setFeedbacks] = useState<Record<string | number, FeedbackStatus>>({});
+    const [aiAnswer, setAiAnswer] = useState<string>("문의 내용을 분석하여 최적의 답변을 생성 중입니다...");
+    const [dynamicFaqList, setDynamicFaqList] = useState<FaqItem[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+
+    const [feedbacks, setFeedbacks] = useState<Record<string, FeedbackStatus>>({});
     const aiFeedback = feedbacks["AI"];
 
     const state = location.state as { formData: CustomerFormData } | null;
     const formData = state?.formData || { 
         name: "고객", 
-        message: "입력된 상세 내용이 없습니다.", 
+        message: "", 
         category: "기타 문의" 
     };
 
-    const faqList = [
-        { id: 1, q: `'${formData.category}' 관련 자주 묻는 질문입니다.`, a: "이 서비스는 현재 전국 대리점 및 온라인 샵에서 신청 가능합니다." },
-        { id: 2, q: "입력하신 문의 내용에 대한 답변입니다.", a: `"${formData.message}" 문의 건은 상담사 연결 시 우선적으로 전달됩니다.` },
-        { id: 3, q: "가족 결합 할인이 가능한가요?", a: "U+ 앱에서 증빙서류 등록 후 바로 신청이 가능합니다." }
-    ];
+    const fetchAnalysis = useCallback(async () => {
+        if (!formData.message) {
+            setAiAnswer("상세 문의 내용이 없어 분석을 진행할 수 없습니다.");
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const data = await getSimilarFaq(formData.message);
+            setAiAnswer(data.answer);
+            setDynamicFaqList(data.retrieved_faqs);
+        } catch (error) {
+            console.error("분석 데이터를 가져오는 중 오류 발생:", error);
+            setAiAnswer("시스템 오류로 인해 답변을 생성하지 못했습니다. 상담사에게 연결해 주세요.");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [formData.message]);
+
+    useEffect(() => {
+        fetchAnalysis();
+    }, [fetchAnalysis]);
 
     const isAllSelected = 
-        faqList.every(faq => feedbacks[faq.id] !== undefined && feedbacks[faq.id] !== null) &&
+        !isLoading &&
+        dynamicFaqList.length > 0 &&
+        dynamicFaqList.every(faq => feedbacks[faq.faq_id] !== undefined && feedbacks[faq.faq_id] !== null) &&
         feedbacks["AI"] !== undefined && feedbacks["AI"] !== null;
 
-    const handleFeedback = (id: string | number, status: FeedbackStatus) => {
+    const handleFeedback = (id: string, status: FeedbackStatus) => {
         setFeedbacks(prev => ({
             ...prev,
             [id]: prev[id] === status ? null : status
         }));
+    };
+
+    // [이 부분이 핵심 수정 사항입니다]
+    const handleNextStep = () => {
+        if (!isAllSelected) return;
+
+        // 좋아요를 누른 항목의 'answer'를 한 줄 요약하여 selectedFaqContent로 만듦
+        const selectedFaqContent = dynamicFaqList
+            .filter((faq: FaqItem) => feedbacks[faq.faq_id] === "like")
+            .map((faq: FaqItem) => {
+                // 1. 답변에서 첫 번째 문장만 추출 (마침표 기준)
+                const firstSentence = faq.answer.split('.')[0];
+                
+                // 2. 너무 길면 30자로 제한하고 말줄임표 처리
+                const summaryText = firstSentence.length > 100
+                    ? `${firstSentence.slice(0, 30)}...` 
+                    : firstSentence;
+
+                return {
+                    ...faq,
+
+                    question: summaryText 
+                };
+            });
+
+        navigate("/customer/summary", { 
+            state: { 
+                formData, 
+                selectedFaqContent, 
+                aiFeedback: feedbacks["AI"],
+                allFeedbacks: feedbacks 
+            } 
+        });
     };
 
     return (
@@ -52,18 +111,40 @@ const CustomerQA: React.FC = () => {
 
                     <div style={{ width: '100%', minHeight: '60px', border: '1px solid #D1D5DB', borderRadius: '8px', padding: '12px', textAlign: 'left', backgroundColor: '#fff' }}>
                         <p style={{ fontSize: '14px', color: '#374151', margin: 0 }}>
-                            {formData.message}
+                            {formData.message || "문의 내용이 없습니다."}
                         </p>
                     </div>
                     <p style={{ fontSize: '12px', color: '#6B7280', textAlign: 'left', marginTop: '4px', marginBottom: '20px' }}>상세 문의 내용</p>
 
-                    <div style={{ width: '100%', minHeight: '120px', border: '1px solid #D1D5DB', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', marginBottom: '8px' }}>
-                        <span style={{ color: '#9CA3AF', fontSize: '14px' }}>(상세 문의에 대한 분석 답변 API 연결 예정)</span>
+                    <div style={{ 
+                        width: '100%', 
+                        minHeight: '120px', 
+                        border: '1px solid #D1D5DB', 
+                        borderRadius: '8px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        backgroundColor: isLoading ? '#F9FAFB' : '#F0F7FF', 
+                        marginBottom: '8px',
+                        padding: '16px',
+                        transition: 'background-color 0.3s'
+                    }}>
+                        <p style={{ 
+                            color: isLoading ? '#9CA3AF' : '#1A1A1A', 
+                            fontSize: '14px', 
+                            margin: 0, 
+                            textAlign: 'left', 
+                            lineHeight: '1.6',
+                            whiteSpace: 'pre-wrap'
+                        }}>
+                            {aiAnswer}
+                        </p>
                     </div>
 
-                    {/* --- AI 분석 답변 글자 + 버튼 세트 --- */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                        <p style={{ fontSize: '12px', color: '#6B7280', margin: 0 }}>AI 분석 답변</p>
+                        <p style={{ fontSize: '12px', color: '#6B7280', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Sparkles size={12} color="#007AFF" /> AI 분석 답변
+                        </p>
                         
                         <div style={{ display: 'flex', gap: '6px' }}>
                             <button
@@ -103,26 +184,26 @@ const CustomerQA: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '30px' }}>
-                    {faqList.map((faq) => {
-                        const currentStatus = feedbacks[faq.id];
+                    {dynamicFaqList.map((faq) => {
+                        const currentStatus = feedbacks[faq.faq_id];
                         return (
                             <div 
-                                key={faq.id} 
+                                key={faq.faq_id} 
                                 className={styles.qaItem}
                                 style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}
                             >
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: '15px', fontWeight: '700', color: '#374151' }}>
-                                        {faq.q}
+                                        {faq.question}
                                     </div>
                                     <div style={{ fontSize: '14px', color: '#4B5563', marginTop: '8px', lineHeight: '1.5' }}>
-                                        {faq.a}
+                                        {faq.answer}
                                     </div>
                                 </div>
                                 
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <button
-                                        onClick={() => handleFeedback(faq.id, "like")}
+                                        onClick={() => handleFeedback(faq.faq_id, "like")}
                                         style={{
                                             width: '32px', height: '32px', borderRadius: '8px', border: '1px solid',
                                             borderColor: currentStatus === 'like' ? '#E6007E' : '#D1D5DB',
@@ -133,7 +214,7 @@ const CustomerQA: React.FC = () => {
                                         <Check size={18} color={currentStatus === 'like' ? '#fff' : '#D1D5DB'} strokeWidth={3} />
                                     </button>
                                     <button
-                                        onClick={() => handleFeedback(faq.id, "dislike")}
+                                        onClick={() => handleFeedback(faq.faq_id, "dislike")}
                                         style={{
                                             width: '32px', height: '32px', borderRadius: '8px', border: '1px solid',
                                             borderColor: currentStatus === 'dislike' ? '#374151' : '#D1D5DB',
@@ -159,11 +240,7 @@ const CustomerQA: React.FC = () => {
                     
                     <button 
                         disabled={!isAllSelected}
-                        onClick={() => {
-                            if (!isAllSelected) return;
-                            const selectedFaqContent = faqList.filter(faq => feedbacks[faq.id] === 'like');
-                            navigate("/customer/summary", { state: { formData, selectedFaqContent, aiFeedback: feedbacks["AI"] } });
-                        }}
+                        onClick={handleNextStep}
                         className={styles.submitBtn} 
                         style={{ 
                             flex: 2, 
@@ -178,7 +255,7 @@ const CustomerQA: React.FC = () => {
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                            {isAllSelected ? "상담 내용 확인하기" : "답변을 모두 평가해주세요"} <MessageCircle size={20} />
+                            {isAllSelected ? "상담 내용 확인하기" : isLoading ? "분석 중..." : "답변을 모두 평가해주세요"} <MessageCircle size={20} />
                         </div>
                     </button>
                 </div>

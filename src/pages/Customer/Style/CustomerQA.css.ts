@@ -1,8 +1,7 @@
 import { style, keyframes } from "@vanilla-extract/css";
 
-// 애니메이션 정의
 const fadeIn = keyframes({
-  from: { opacity: 0, transform: "translateY(10px)" },
+  from: { opacity: 0, transform: "translateY(5px)" },
   to: { opacity: 1, transform: "translateY(0)" },
 });
 
@@ -10,45 +9,40 @@ export const container = style({
   minHeight: "100vh",
   backgroundColor: "#F3F4F6", 
   display: "flex",
-  flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  padding: "20px",
-  fontFamily: "'Pretendard', -apple-system, sans-serif",
+  padding: "10px", // 외부 여백 축소
+  fontFamily: "'Pretendard', sans-serif",
 });
 
 export const card = style({
   width: "100%",
-  maxWidth: "480px",
+  maxWidth: "440px", // 가로폭 약간 축소
   backgroundColor: "#ffffff",
-  borderRadius: "24px",
-  padding: "32px 24px",
-  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.05)",
-  animation: `${fadeIn} 0.5s ease-out`,
+  borderRadius: "20px",
+  padding: "20px 16px", // 내부 여백 대폭 축소 (기존 32px -> 20px)
+  boxShadow: "0 4px 15px rgba(0, 0, 0, 0.05)",
+  animation: `${fadeIn} 0.4s ease-out`,
 });
 
-/* --- 상단 Step Bar 스타일 (새로 추가) --- */
+/* --- 상단 Step Bar (높이 축소) --- */
 export const stepContainer = style({
   display: "flex",
   justifyContent: "center",
-  alignItems: "center",
-  gap: "12px",
-  marginBottom: "24px",
+  gap: "8px",
+  marginBottom: "16px", // 마진 축소
 });
 
 export const stepBox = style({
-  width: "32px",
-  height: "32px",
-  borderRadius: "8px",
+  width: "28px",
+  height: "28px",
+  borderRadius: "6px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontWeight: "bold",
-  fontSize: "14px",
+  fontSize: "12px",
   border: "1px solid #D1D5DB",
-  backgroundColor: "#ffffff",
   color: "#9CA3AF",
-  transition: "all 0.3s ease",
 });
 
 export const stepBoxActive = style({
@@ -57,131 +51,35 @@ export const stepBoxActive = style({
   color: "#ffffff",
 });
 
-/* --- 기존 헤더 및 입력 스타일 --- */
+/* --- 헤더 (콤팩트화) --- */
 export const header = style({
   textAlign: "center",
-  marginBottom: "32px",
-});
-
-export const iconCircle = style({
-  width: "64px",
-  height: "64px",
-  backgroundColor: "#FFF1F8",
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  margin: "0 auto 16px",
+  marginBottom: "16px", // 마진 축소
 });
 
 export const title = style({
-  fontSize: "22px",
+  fontSize: "18px", // 폰트 크기 축소
   fontWeight: "800",
   color: "#111827",
-  letterSpacing: "-0.5px",
-  marginBottom: "8px",
+  marginBottom: "4px",
 });
 
 export const subtitle = style({
-  fontSize: "14px",
+  fontSize: "13px",
   color: "#6B7280",
-  lineHeight: "1.5",
 });
 
-export const form = style({
-  display: "flex",
-  flexDirection: "column",
-  gap: "20px",
-});
-
-export const inputGroup = style({
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-});
-
-export const label = style({
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "#374151",
-  paddingLeft: "4px",
-});
-
-export const inputWrapper = style({
-  position: "relative",
-  display: "flex",
-  alignItems: "center",
-  backgroundColor: "#F9FAFB",
-  border: "1px solid #E5E7EB",
-  borderRadius: "12px",
-  transition: "all 0.2s ease",
-  selectors: {
-    "&:focus-within": {
-      borderColor: "#E6007E",
-      backgroundColor: "#ffffff",
-      boxShadow: "0 0 0 3px rgba(230, 0, 126, 0.1)",
-    },
-  },
-});
-
-export const inputIcon = style({
-  marginLeft: "12px",
-  color: "#9CA3AF",
-});
-
-export const input = style({
-  width: "100%",
-  padding: "14px 12px",
-  fontSize: "15px",
-  border: "none",
-  background: "transparent",
-  outline: "none",
-  color: "#111827",
-  selectors: {
-    "&::placeholder": {
-      color: "#9CA3AF",
-    },
-  },
-});
-
-export const submitBtn = style({
-  width: "100%",
-  padding: "16px",
-  backgroundColor: "#E6007E",
-  color: "#ffffff",
-  border: "none",
-  borderRadius: "14px",
-  fontSize: "16px",
-  fontWeight: "700",
-  cursor: "pointer",
-  transition: "all 0.2s ease",
-  marginTop: "10px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  ":hover": {
-    backgroundColor: "#C5006C",
-    transform: "translateY(-1px)",
-  },
-  ":disabled": {
-    backgroundColor: "#F9A8D4",
-    cursor: "not-allowed",
-  },
-});
-
-/* --- Q&A 페이지용 스타일 --- */
+/* --- Q&A 리스트 (간격 최적화) --- */
 export const qaItem = style({
   display: "flex",
   alignItems: "flex-start",
-  gap: "12px",
-  padding: "18px",
-  borderRadius: "16px",
+  gap: "10px",
+  padding: "12px", // 패딩 축소
+  borderRadius: "12px",
   border: "1px solid #E5E7EB",
-  cursor: "pointer",
-  transition: "all 0.2s",
   backgroundColor: "#ffffff",
-  marginBottom: "12px",
+  marginBottom: "8px", // 아이템 간 간격 축소
+  cursor: "pointer",
 });
 
 export const qaItemActive = style({
@@ -189,23 +87,58 @@ export const qaItemActive = style({
   backgroundColor: "#FFF1F8",
 });
 
-/* --- 3단계: 최종 확인 페이지용 요약 박스 (새로 추가) --- */
+/* --- 버튼 영역 (높이 고정 및 정렬) --- */
+export const buttonGroup = style({
+  display: "flex",
+  gap: "8px",
+  alignItems: "center",
+  marginTop: "16px", // 상단 마진 축소
+  width: "100%",
+});
+
+const baseButton = style({
+  height: "48px", // 전체 높이를 위해 56px에서 48px로 조정
+  borderRadius: "12px",
+  fontSize: "14px",
+  fontWeight: "700",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "6px",
+  border: "none",
+  cursor: "pointer",
+});
+
+export const prevBtn = style([baseButton, {
+  flex: 1,
+  backgroundColor: "#ffffff",
+  border: "1px solid #E5E7EB",
+  color: "#6B7280",
+}]);
+
+export const submitBtn = style([baseButton, {
+  flex: 2,
+  backgroundColor: "#E6007E",
+  color: "#ffffff",
+  ":disabled": {
+    backgroundColor: "#D1D5DB",
+    cursor: "not-allowed",
+  },
+}]);
+
+/* --- 요약 박스 (높이 축소) --- */
 export const summaryBox = style({
   backgroundColor: "#F9FAFB",
-  borderRadius: "16px",
-  padding: "20px",
-  marginBottom: "24px",
-  border: "1px solid #F3F4F6",
+  borderRadius: "12px",
+  padding: "12px 16px",
+  marginBottom: "16px",
 });
 
 export const summaryItem = style({
   display: "flex",
   justifyContent: "space-between",
-  padding: "10px 0",
+  padding: "6px 0", // 간격 축소
+  fontSize: "14px",
   borderBottom: "1px solid #F3F4F6",
-  selectors: {
-    "&:last-child": {
-      borderBottom: "none",
-    },
-  },
+  selectors: { "&:last-child": { borderBottom: "none" } },
 });
