@@ -141,7 +141,7 @@ const ConsultationDetail: React.FC = () => {
     const handleSaveAndExportFile = useCallback(() => {
         if (messages.length === 0) return;
         try {
-            const customerName = customerInfo?.customer_name || "Unknown";
+            const customerName = customerCtx?.name || customerInfo?.customer_name || "Unknown";
             const chatLogs = messages.map(m => `[${m.time}] ${m.sender.toUpperCase()}: ${m.text}`).join('\n');
             const blob = new Blob([`=== LG U+ 상담 기록 (고객: ${customerName}) ===\n${chatLogs}`], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
@@ -297,7 +297,7 @@ const ConsultationDetail: React.FC = () => {
     }, [inputValue, customerId]);
 
     const handleFinalComplete = async () => {
-        if (!customerId || !customerInfo) return;
+        if (!customerId || (!customerInfo && !customerCtx)) return;
         
         try {
             setShowExitModal(false);
@@ -309,7 +309,7 @@ const ConsultationDetail: React.FC = () => {
 
             const payload = {
                 finalResultCode: finalResultCode,
-                customerName: customerInfo.customer_name,
+                customerName: customerCtx?.name || customerInfo?.customer_name,
                 consultationContent: fullChatLog 
             };
 
@@ -366,7 +366,7 @@ const ConsultationDetail: React.FC = () => {
                         <ArrowLeft size={24} color="#666" />
                     </button>
                     <div className={styles.statusDot} />
-                    <h1 className={styles.title}>실시간 상담: {customerInfo?.customer_name}</h1>
+                    <h1 className={styles.title}>실시간 상담: {customerCtx?.name ?? customerInfo?.customer_name}</h1>
                     <section className={styles.timer}><Clock size={16} /> {formatTime(consultationTime)}</section>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
