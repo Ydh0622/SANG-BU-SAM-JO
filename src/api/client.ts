@@ -13,7 +13,7 @@ const config: AxiosRequestConfig = {
 // 각 도메인별 스토어 생성
 export const apiStore = axios.create({ baseURL: '/api', ...config });
 export const adminStore = axios.create({ baseURL: '/admin', ...config });
-export const fastApiStore = axios.create({ baseURL: '/fast', ...config });
+export const fastApiStore = axios.create({ baseURL: '/fastapi', ...config });
 
 /**
  * 인터셉터 설정 함수
@@ -26,6 +26,18 @@ const setInterceptors = (instance: AxiosInstance) => {
       
       if (config.url?.includes('/auth/google')) {
         return config;
+      }
+
+      if (import.meta.env.DEV) {
+        // 실제 백엔드로 나가는 요청 로깅
+        console.log(
+          '[API REQUEST]',
+          instance.defaults.baseURL,
+          config.url,
+          config.method,
+          config.params ?? '',
+          config.data ?? ''
+        );
       }
       
       if (token && config.headers) {
