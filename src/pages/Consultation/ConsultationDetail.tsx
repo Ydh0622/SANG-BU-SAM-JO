@@ -85,18 +85,18 @@ const ConsultationDetail: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
 
-    // FAQ 선택 핸들러 (V 클릭 시 true, X 클릭 시 false)
-const handleSelectFaq = (id: string, status: boolean) => {
-    setSimilarFaqs(prev => prev.map(faq => {
-        if (faq.faq_id === id) {
-            return { 
-                ...faq, 
-                isSelected: faq.isSelected === status ? undefined : status 
-            };
-        }
-        return faq;
-    }));
-};
+    const handleSelectFaq = (id: string, status: boolean) => {
+        setSimilarFaqs(prev => prev.map(faq => {
+            if (faq.faq_id === id) {
+                return { 
+                    ...faq, 
+                    isSelected: faq.isSelected === status ? undefined : status 
+                };
+            }
+            return faq;
+        }));
+    };
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -188,9 +188,11 @@ const handleSelectFaq = (id: string, status: boolean) => {
         const textToSend = inputValue;
         const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const newMessage: Message = { id: Date.now(), sender: "agent", text: textToSend, time: now };
+        
         setInputValue("");
         setMessages((prev) => [...prev, newMessage]);
         localStorage.setItem("agentMessage", JSON.stringify(newMessage));
+        
         try {
             await sendConsultationMessage(customerId, textToSend);
         } catch (error) {
@@ -198,40 +200,35 @@ const handleSelectFaq = (id: string, status: boolean) => {
         }
     }, [inputValue, customerId]);
 
-const handleFinalComplete = async () => {
-    if (!customerId || !customerInfo) return;
-    
-    try {
-        setShowExitModal(false);
-        setIsLoading(true);
-
-        // 1. 대화 내역 전체를 하나의 문자열로 합치기 (시간 - 보낸사람: 내용)
-        const fullChatLog = messages
-            .map(m => `[${m.time}] ${m.sender === 'customer' ? '고객' : '상담사'}: ${m.text}`)
-            .join('\n');
-
-        // 2. 서버로 보낼 데이터 구성
-        const payload = {
-            finalResultCode: finalResultCode,
-            customerName: customerInfo.customer_name,
-            consultationContent: fullChatLog 
-        };
-
-        // 3. API 전송
-        await endConsultation(customerId, payload);
+    const handleFinalComplete = async () => {
+        if (!customerId || !customerInfo) return;
         
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            setShowExitModal(false);
+            setIsLoading(true);
 
-        // 로컬 스토리지 정리 및 이동
-        ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
-        navigate("/search", { replace: true });
+            const fullChatLog = messages
+                .map(m => `[${m.time}] ${m.sender === 'customer' ? '고객' : '상담사'}: ${m.text}`)
+                .join('\n');
 
-    } catch (err) {
-        setIsLoading(false);
-        const error = err as AxiosError<{ message?: string }>;
-        alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
-    }
-};
+            const payload = {
+                finalResultCode: finalResultCode,
+                customerName: customerInfo.customer_name,
+                consultationContent: fullChatLog 
+            };
+
+            await endConsultation(customerId, payload);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
+            navigate("/search", { replace: true });
+
+        } catch (err) {
+            setIsLoading(false);
+            const error = err as AxiosError<{ message?: string }>;
+            alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
+        }
+    };
 
     useEffect(() => {
         const handleCustomerChat = (e: StorageEvent) => {
@@ -287,14 +284,15 @@ const handleFinalComplete = async () => {
             </header>
 
             <div className={styles.mainLayout}>
-                {/* 왼쪽 사이드 - 고객 정보 */}
                 <aside className={styles.sideSection} style={{ flex: '0 0 350px' }}>
                     <article className={styles.card}>
                         <div className={styles.cardHeader}>
                             <h3 className={styles.cardTitle}>고객 정보</h3>
                             <span className={styles.badgeVIP}>VIP Platinum</span>
                         </div>
-                        <div className={styles.avatar} style={{ margin: "0 auto 16px" }}><User size={40} color="#E6007E" /></div>
+                        <div className={styles.avatar} style={{ margin: "0 auto 16px" }}>
+  <User size={40} color="#E6007E" />
+</div>
                         <div style={{ textAlign: "center", marginBottom: "16px" }}>
                             <strong>{customerInfo?.customer_name}</strong>
                             <p style={{ color: "#E6007E", fontWeight: 800, fontSize: "12px" }}>LG U+ 최우수 고객</p>
@@ -325,7 +323,6 @@ const handleFinalComplete = async () => {
                     </article>
                 </aside>
 
-                {/* 중앙 - 채팅 영역 */}
                 <section className={styles.chatSection} style={{ flex: '1' }}>
                     <div className={styles.messageList} ref={scrollRef}>
                         {messages.map((msg) => (
@@ -358,7 +355,11 @@ const handleFinalComplete = async () => {
                                 className={styles.input}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                                onKeyDown={(e) => {
+                                    // ✅ 한글 입력 중복 방지 로직 추가
+                                    if (e.nativeEvent.isComposing) return;
+                                    if (e.key === "Enter") handleSend();
+                                }}
                                 placeholder="메시지 입력..."
                             />
                             <button type="button" className={styles.sendBtn} onClick={handleSend} disabled={!inputValue.trim()}><Send size={20} /></button>
@@ -366,7 +367,6 @@ const handleFinalComplete = async () => {
                     </footer>
                 </section>
 
-                {/* 오른쪽 사이드 - FAQ & 히스토리 */}
                 <aside className={styles.sideSection} style={{ flex: '0 0 380px' }}>
                     <article className={styles.statCard}>
                         <h3 className={styles.cardTitle}><Users size={20} color="#E6007E" /> 실시간 대기</h3>
@@ -387,7 +387,6 @@ const handleFinalComplete = async () => {
                                          transition: 'all 0.2s ease'
                                      }}>
                                     
-                                    {/* 이미지 레이아웃 반영: 우측 상단 V / X 버튼 */}
                                     <div style={{ 
                                         position: 'absolute', 
                                         top: '12px', 
@@ -447,7 +446,6 @@ const handleFinalComplete = async () => {
                 </aside>
             </div>
 
-            {/* 상담 종료 모달 */}
             {showExitModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowExitModal(false)}>
                     <div className={styles.exitModal} onClick={e => e.stopPropagation()}>

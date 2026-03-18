@@ -14,16 +14,16 @@ interface ChatMessage {
 const CustomerChat = () => {
     const navigate = useNavigate();
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null); // 전송 후 포커스 유지를 위한 ref
 
     // 상담 종료 모달 상태
     const [showTerminatedModal, setShowTerminatedModal] = useState(false);
 
-    // 2. 초기 메시지 설정: 상담사 환영 메시지 + 고객 문의 내역 자동 로드
+    // 2. 초기 메시지 설정
     const [messages, setMessages] = useState<ChatMessage[]>(() => {
         const savedInquiry = localStorage.getItem("customerInquiry");
         const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
-        // [A] 상담사의 첫 환영 인사 (고정)
         const initialMsgs: ChatMessage[] = [
             {
                 id: 1000,
@@ -33,12 +33,9 @@ const CustomerChat = () => {
             }
         ];
 
-        // [B] 고객이 신청 단계에서 작성한 내용이 있다면 추가
         if (savedInquiry) {
             try {
                 const data = JSON.parse(savedInquiry);
-                
-                // 고객 본인이 보낸 메시지
                 initialMsgs.push({ 
                     id: Date.now(), 
                     sender: 'me', 
@@ -46,7 +43,6 @@ const CustomerChat = () => {
                     time: data.time || now 
                 });
 
-                // [C] 고객 메시지 수신 후 상담사의 자동 응답
                 initialMsgs.push({ 
                     id: Date.now() + 1, 
                     sender: 'agent', 
@@ -63,20 +59,17 @@ const CustomerChat = () => {
 
     const [input, setInput] = useState("");
 
-    /** 3. 실시간 통신 감지 (상담사 메시지 수신 및 종료 감지) */
+    /** 3. 실시간 통신 감지 */
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
-            // 상담 종료 감지 (isMatched가 삭제되거나 false가 될 때)
             if (e.key === "isMatched" && (e.newValue === null || e.newValue === "false")) {
                 setShowTerminatedModal(true);
             }
 
-            // 상담사가 보낸 실시간 메시지 수신
             if (e.key === "agentMessage" && e.newValue) {
                 try {
                     const data = JSON.parse(e.newValue);
                     setMessages(prev => {
-                        // 중복 메시지 방지
                         if (prev.some(msg => msg.id === data.id)) return prev;
                         return [...prev, {
                             id: data.id,
@@ -117,15 +110,16 @@ const CustomerChat = () => {
         };
 
         setMessages(prev => [...prev, newMessage]);
-        // 상담사 화면으로 메시지 전달
         localStorage.setItem("customerMessage", JSON.stringify(newMessage));
         setInput("");
+        
+        // 전송 후 입력창에 포커스 유지
+        inputRef.current?.focus();
     };
 
     /** 6. 상담 종료 후 페이지 이동 */
     const handleCloseAndNavigate = () => {
         setShowTerminatedModal(false);
-
         localStorage.removeItem("customerInquiry");
         navigate('/customer/apply', { replace: true });
     };
@@ -162,10 +156,17 @@ const CustomerChat = () => {
                 {/* 입력 영역 */}
                 <div className={styles.inputArea}>
                     <input 
+                        ref={inputRef}
                         className={styles.textField} 
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        onKeyDown={(e) => {
+                            if (e.nativeEvent.isComposing) return;
+                            
+                            if (e.key === 'Enter') {
+                                handleSend();
+                            }
+                        }}
                         placeholder="상담사에게 메시지 보내기..."
                     />
                     <button className={styles.sendBtn} onClick={handleSend} disabled={!input.trim()}>

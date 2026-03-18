@@ -40,16 +40,12 @@ const CustomerApply: React.FC = () => {
         }
     };
 
-    /** API 호출 대신 다음 페이지로 데이터 전달하며 이동 */
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
         if (!formData.category) {
             alert("문의 카테고리를 선택해주세요.");
             return;
         }
-
-        // CustomerQA 페이지로 이동 (기존 데이터 보존)
         navigate("/customer/qa", { state: { formData } });
     };
 
@@ -103,11 +99,40 @@ const CustomerApply: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* ✅ 상세 내용 수정 부분 */}
                     <div className={styles.inputGroup}>
                         <label className={styles.label}>상세 내용</label>
-                        <div className={styles.inputWrapper} style={{ alignItems: 'flex-start', paddingTop: '10px' }}>
-                            <Send size={16} className={styles.inputIcon} />
-                            <textarea name="message" value={formData.message} onChange={handleChange} placeholder="상담원에게 전달할 메시지를 입력하세요." className={styles.input} style={{ minHeight: '80px', border: 'none', width: '100%', outline: 'none', resize: 'none' }} required />
+                        <div 
+                            className={styles.inputWrapper} 
+                            style={{ 
+                                alignItems: 'flex-start', 
+                                minHeight: '120px' // 전체적인 높이 확보
+                            }}
+                        >
+                            {/* 아이콘의 위쪽 여백을 주어 텍스트와 높이를 맞춤 */}
+                            <Send 
+                                size={16} 
+                                className={styles.inputIcon} 
+                                style={{ marginTop: '25px' }} 
+                            />
+                            <textarea 
+                                name="message" 
+                                value={formData.message} 
+                                onChange={handleChange} 
+                                placeholder="상담원에게 전달할 메시지를 입력하세요." 
+                                className={styles.input} 
+                                style={{ 
+                                    height: '120px', 
+                                    border: 'none', 
+                                    width: '100%', 
+                                    outline: 'none', 
+                                    resize: 'none',
+                                    paddingTop: '25px', 
+                                    paddingLeft: '46px', 
+                                    lineHeight: '1.5'
+                                }} 
+                                required 
+                            />
                         </div>
                     </div>
 

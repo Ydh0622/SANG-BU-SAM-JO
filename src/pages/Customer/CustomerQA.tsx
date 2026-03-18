@@ -188,7 +188,7 @@ const CustomerQA: React.FC = () => {
                                 className={styles.qaItem}
                                 style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}
                             >
-                                {/* 💡 FAQ 답변 영역: flex 1과 width 0을 주어 버튼 공간을 제외한 모든 가로 너비를 채움 */}
+
                                 <div style={{ flex: 1, width: '0' }}>
                                     <div style={{ fontSize: '15px', fontWeight: '700', color: '#374151' }}>
                                         {faq.question}

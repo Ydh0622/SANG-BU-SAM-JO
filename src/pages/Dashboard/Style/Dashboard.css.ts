@@ -146,7 +146,7 @@ export const notificationBadge = style({
     border: "2px solid #FFF",
 });
 
-/** 🔔 11. 알림 팝오버 스타일 (수정됨) */
+/** 🔔 11. 알림 팝오버 스타일 */
 export const notificationPopover = style({
     position: "absolute",
     top: "50px",
@@ -169,7 +169,6 @@ export const popoverHeader = style({
     alignItems: "center",
 });
 
-// 자식 요소들을 globalStyle로 분리하여 에러 해결
 globalStyle(`${popoverHeader} span`, {
     fontWeight: 800,
     fontSize: "15px",
@@ -363,34 +362,23 @@ export const alertBanner = style({
     animation: `${pulse} 2s infinite ease-in-out`,
 });
 
+/** ✅ 정렬을 위한 공통 베이스 스타일 */
+const badgeBase = style({
+    display: "inline-flex",   // 가로 배치
+    alignItems: "center",     // 수직 중앙 정렬
+    justifyContent: "center", // 수평 중앙 정렬
+    gap: "4px",               // 아이콘과 텍스트 사이 간격
+    padding: "4px 10px",
+    borderRadius: "6px",
+    fontSize: "11px",
+    fontWeight: 900,
+    flexShrink: 0,
+});
+
 export const alertLevelBadge = styleVariants({
-    CRITICAL: {
-        backgroundColor: UPLUS_MAGENTA,
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
-    HIGH: {
-        backgroundColor: "#F97316",
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
-    MID: {
-        backgroundColor: AI_BLUE,
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
+    CRITICAL: [badgeBase, { backgroundColor: UPLUS_MAGENTA, color: "#FFF" }],
+    HIGH: [badgeBase, { backgroundColor: "#F97316", color: "#FFF" }],
+    MID: [badgeBase, { backgroundColor: AI_BLUE, color: "#FFF" }],
 });
 
 export const alertText = style({
