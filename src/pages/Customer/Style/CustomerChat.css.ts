@@ -8,7 +8,7 @@ const popIn = keyframes({
     to: { opacity: 1, transform: "translateY(0) scale(1)" },
 });
 
-/** ✅ 추가된 로딩 컨테이너 스타일 */
+/**  추가된 로딩 컨테이너 스타일 */
 export const loadingContainer = style({
     width: "100%",
     height: "100vh",
@@ -99,7 +99,7 @@ const bubbleBase = style({
     animation: `${popIn} 0.3s ease-out`,
 });
 
-/** ✅ 내 메시지: 가로 배치 (시간이 왼쪽, 말풍선이 오른쪽) */
+/**  내 메시지: 가로 배치 (시간이 왼쪽, 말풍선이 오른쪽) */
 export const myMsgWrapper = style({
     alignSelf: "flex-end", 
     display: "flex",
@@ -117,7 +117,7 @@ export const myBubble = style([bubbleBase, {
     order: 2,
 }]);
 
-/** ✅ 상담사 메시지: 가로 배치 (말풍선이 왼쪽, 시간이 오른쪽) */
+/**  상담사 메시지: 가로 배치 (말풍선이 왼쪽, 시간이 오른쪽) */
 export const agentMsgWrapper = style({
     alignSelf: "flex-start", 
     display: "flex",
@@ -136,7 +136,7 @@ export const agentBubble = style([bubbleBase, {
     order: 1,
 }]);
 
-/** ✅ 시간 스타일 */
+/** 시간 스타일 */
 export const timeLabel = style({
     fontSize: "11px",
     color: "#999",

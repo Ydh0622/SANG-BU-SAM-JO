@@ -11,7 +11,7 @@ interface CustomerFormData {
   category: string;
 }
 
-/** 💡 State 타입 정의: consultationId 추가 */
+
 interface LocationState {
     formData: CustomerFormData;
     consultationId: string;
@@ -30,7 +30,7 @@ const CustomerQA: React.FC = () => {
     const [feedbacks, setFeedbacks] = useState<Record<string, FeedbackStatus>>({});
     const aiFeedback = feedbacks["AI"];
 
-    // 💡 [수정] Apply에서 넘겨준 state를 안전하게 가져옵니다.
+    // Apply에서 넘겨준 state를 안전하게 가져옵니다.
     const state = location.state as LocationState | null;
     const formData = state?.formData || { 
         name: "고객", 
@@ -38,7 +38,7 @@ const CustomerQA: React.FC = () => {
         category: "기타 문의" 
     };
     
-    // 💡 [추가] 상담 ID 보관 (이게 없으면 나중에 Chat에서 튕김)
+    //  상담 ID 보관 (이게 없으면 나중에 Chat에서 튕김)
     const consultationId = state?.consultationId;
 
     const fetchAnalysis = useCallback(async () => {
@@ -78,7 +78,7 @@ const CustomerQA: React.FC = () => {
         }));
     };
 
-    /** 💡 [수정] 다음 단계로 이동 시 consultationId를 포함합니다. */
+    /**  다음 단계로 이동 시 consultationId를 포함합니다. */
     const handleNextStep = () => {
         if (!isAllSelected) return;
 
@@ -96,11 +96,11 @@ const CustomerQA: React.FC = () => {
                 };
             });
 
-        // 💡 [중요] Summary 페이지로 consultationId를 배달합니다.
+        //  Summary 페이지로 consultationId를 배달합니다.
         navigate("/customer/summary", { 
             state: { 
                 formData, 
-                consultationId, // 👈 이 데이터가 Summary까지 가야 합니다.
+                consultationId, 
                 selectedFaqContent, 
                 aiFeedback: feedbacks["AI"],
                 allFeedbacks: feedbacks 

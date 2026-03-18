@@ -36,7 +36,7 @@ export interface ConsultationApiResponse {
     error: string | null;
 }
 
-/** 💡 [명세서 반영] 메시지 전송 요청 인터페이스 */
+/** 메시지 전송 요청 인터페이스 */
 export interface SendMessageRequest {
     content: string;         // 메시지 내용
     senderType: "AGENT" | "CUSTOMER"; // 발신자 타입 구분
