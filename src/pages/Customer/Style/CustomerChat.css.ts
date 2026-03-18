@@ -8,6 +8,20 @@ const popIn = keyframes({
     to: { opacity: 1, transform: "translateY(0) scale(1)" },
 });
 
+/** ✅ 추가된 로딩 컨테이너 스타일 */
+export const loadingContainer = style({
+    width: "100%",
+    height: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    fontSize: "18px",
+    fontWeight: 700,
+    color: UPLUS_MAGENTA,
+    fontFamily: "Pretendard, system-ui, sans-serif",
+});
+
 export const container = style({
     width: "100%",
     height: "100vh",
@@ -77,7 +91,7 @@ const bubbleBase = style({
     fontSize: "15px",
     lineHeight: "1.5",
     width: "fit-content",
-    maxWidth: "100%", // Wrapper에서 조절하므로 100%로 변경
+    maxWidth: "100%",
     minWidth: "45px",
     whiteSpace: "pre-wrap",
     wordBreak: "keep-all",
@@ -89,10 +103,10 @@ const bubbleBase = style({
 export const myMsgWrapper = style({
     alignSelf: "flex-end", 
     display: "flex",
-    flexDirection: "row",      // 가로 정렬
-    alignItems: "flex-end",    // 바닥 기준 정렬
-    gap: "8px",                // 시간과 말풍선 사이 간격
-    maxWidth: "85%",           // 전체 너비 제한
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: "8px",
+    maxWidth: "85%",
 });
 
 export const myBubble = style([bubbleBase, {
@@ -100,15 +114,15 @@ export const myBubble = style([bubbleBase, {
     color: "#FFF",
     borderRadius: "20px 20px 0 20px", 
     boxShadow: "0 4px 10px rgba(230, 0, 126, 0.15)",
-    order: 2,                  // 말풍선이 뒤로(오른쪽) 가게 함
+    order: 2,
 }]);
 
 /** ✅ 상담사 메시지: 가로 배치 (말풍선이 왼쪽, 시간이 오른쪽) */
 export const agentMsgWrapper = style({
     alignSelf: "flex-start", 
     display: "flex",
-    flexDirection: "row",      // 가로 정렬
-    alignItems: "flex-end",    // 바닥 기준 정렬
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: "8px",
     maxWidth: "85%",
 });
@@ -119,19 +133,17 @@ export const agentBubble = style([bubbleBase, {
     borderRadius: "0 20px 20px 20px", 
     border: "1px solid #E5E7EB",
     boxShadow: "0 2px 5px rgba(0, 0, 0, 0.05)",
-    order: 1,                  // 말풍선이 앞으로(왼쪽) 오게 함
+    order: 1,
 }]);
 
-/** ✅ 시간 스타일 수정 */
+/** ✅ 시간 스타일 */
 export const timeLabel = style({
     fontSize: "11px",
     color: "#999",
-    marginBottom: "2px",       // 바닥 정렬 시 살짝 띄움
-    whiteSpace: "nowrap",      // 시간 줄바꿈 방지
-    order: 0,                  // 기본 순서
+    marginBottom: "2px",
+    whiteSpace: "nowrap",
+    order: 0,
 });
-
-// 내 시간만 말풍선 왼쪽으로 보내기 위해 별도로 order 설정 가능 (위의 myMsgWrapper/bubble에서 조절됨)
 
 export const inputArea = style({
     padding: "16px 20px 30px", 

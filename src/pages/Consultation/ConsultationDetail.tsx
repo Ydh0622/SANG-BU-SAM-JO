@@ -72,9 +72,9 @@ const ConsultationDetail: React.FC = () => {
         { date: "2023.11.02", category: "기타", summary: "해외 로밍 데이터 무제한 요금제 가입 및 차단 설정 완료" }
     ]);
 
-    const [isTyping, setIsTyping] = useState(false);
+    const [isTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
-    const [showExitModal, setShowExitModal] = useState(false);
+    const [showExitModal, setShowExitModal] =   useState(false);
     const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
     const [waitingCount] = useState<number>(() => {
@@ -184,21 +184,26 @@ const ConsultationDetail: React.FC = () => {
     }, [customerId, fetchSimilarFaqs, navigate]);
 
     const handleSend = useCallback(async () => {
-        if (!inputValue.trim() || !customerId) return;
-        const textToSend = inputValue;
-        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const newMessage: Message = { id: Date.now(), sender: "agent", text: textToSend, time: now };
-        
-        setInputValue("");
-        setMessages((prev) => [...prev, newMessage]);
-        localStorage.setItem("agentMessage", JSON.stringify(newMessage));
-        
-        try {
-            await sendConsultationMessage(customerId, textToSend);
-        } catch (error) {
-            console.warn("API 전송 실패:", error);
-        }
-    }, [inputValue, customerId]);
+    if (!inputValue.trim() || !customerId) return;
+    
+    const textToSend = inputValue;
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const newMessage: Message = { id: Date.now(), sender: "agent", text: textToSend, time: now };
+    
+    setInputValue("");
+    setMessages((prev) => [...prev, newMessage]);
+    localStorage.setItem("agentMessage", JSON.stringify(newMessage));
+    
+    try {
+       
+        await sendConsultationMessage(customerId, {
+            content: textToSend,
+            senderType: "AGENT" 
+        });
+    } catch (error) {
+        console.warn("API 전송 실패:", error);
+    }
+}, [inputValue, customerId]);
 
     const handleFinalComplete = async () => {
         if (!customerId || !customerInfo) return;
@@ -243,8 +248,7 @@ const ConsultationDetail: React.FC = () => {
                         time: data.time
                     }];
                 });
-                setIsTyping(true);
-                setTimeout(() => setIsTyping(false), 1500);
+
             }
         };
         window.addEventListener("storage", handleCustomerChat);
@@ -356,7 +360,7 @@ const ConsultationDetail: React.FC = () => {
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={(e) => {
-                                    // ✅ 한글 입력 중복 방지 로직 추가
+                                  
                                     if (e.nativeEvent.isComposing) return;
                                     if (e.key === "Enter") handleSend();
                                 }}

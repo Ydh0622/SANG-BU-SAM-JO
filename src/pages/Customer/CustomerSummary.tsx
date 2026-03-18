@@ -3,11 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, MessageSquare, ClipboardList, User, ArrowRight, X, Loader2, CheckCircle2 } from "lucide-react";
 import * as styles from "./Style/CustomerSummary.css.ts";
 
-import { createConsultation } from "../../api/services/consultation";
-import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
-
-type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
-
+/**  타입 정의 보강 */
 interface CustomerFormData {
   name: string;
   phone: string;
@@ -15,7 +11,6 @@ interface CustomerFormData {
   category: string;
 }
 
-// 💡 FaqItem 구조를 이전 페이지(question)와 일치시킴
 interface FaqItem {
   faq_id: string;
   question: string;
@@ -25,16 +20,8 @@ interface FaqItem {
 interface LocationState {
   formData: CustomerFormData;
   selectedFaqContent: FaqItem[];
+  consultationId: string; 
 }
-
-const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
-  "요금제/부가서비스": { id: 1, code: "MOBILE" },
-  "기기변경/신규가입": { id: 2, code: "MOBILE" },
-  "기술지원/장애문의": { id: 3, code: "MOBILE" },
-  "결합상품/인터넷": { id: 4, code: "INTERNET" },
-  "이벤트/멤버십": { id: 5, code: "MOBILE" },
-  "기타 문의": { id: 6, code: "ETC" }
-};
 
 const CustomerSummary: React.FC = () => {
   const navigate = useNavigate();
@@ -44,12 +31,13 @@ const CustomerSummary: React.FC = () => {
   const [isMatched, setIsMatched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 💡 데이터 수신 로직
+  //  1. QA 페이지에서 넘겨준 데이터와 ID 수신
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
+  const consultationId = state?.consultationId || localStorage.getItem("consultationId");
 
-  // [로직 통합] 매칭 감시
+  // 매칭 감시 로직 (기존 유지)
   useEffect(() => {
     let checkTimer: number | undefined;
 
@@ -71,47 +59,27 @@ const CustomerSummary: React.FC = () => {
     return () => { if (checkTimer) clearInterval(checkTimer); };
   }, [showModal, isMatched, navigate]);
 
-  const handleStartChat = async () => {
-    if (isSubmitting) return;
+  /**  상담 시작 버튼 로직 */
+  const handleStartChat = () => {
+    if (!consultationId) {
+      alert("상담 정보가 유효하지 않습니다. 다시 신청해주세요.");
+      navigate("/customer/apply");
+      return;
+    }
 
-    localStorage.removeItem("isMatched");
-    setIsMatched(false);
-
-    const selectedCategory = CATEGORY_MAP[formData.category] || CATEGORY_MAP["기타 문의"];
     setIsSubmitting(true);
 
-    try {
-      const payload: CreateConsultationRequest = {
-        customerName: formData.name,
-        phone: formData.phone,
-        channel: "CHAT",
-        productLineCode: selectedCategory.code,
-        issueTypeId: selectedCategory.id,
-        priority: "MID",
-        initialMessage: formData.message
-      };
+    localStorage.setItem("customerInquiry", formData.message);
 
-      const result: CreateConsultationResponse = await createConsultation(payload);
-      const consultationId = result?.data?.consultationId ?? 
-                           (result as unknown as { consultationId: number }).consultationId;
+    // Chat 페이지에서 사용할 최종 ID 확정 저장
+    localStorage.setItem("consultationId", consultationId); 
+    localStorage.setItem("isMatched", "false"); 
 
-      if (consultationId) {
-        localStorage.setItem("customerInquiry", JSON.stringify({
-          message: formData.message,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }));
-
-        localStorage.setItem("currentConsultationId", consultationId.toString());
-        localStorage.setItem("isMatched", "false"); 
-        setShowModal(true); 
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "상담 신청 실패";
-      alert(message);
-      setShowModal(false);
-    } finally {
+    // 매칭 대기 모달 오픈
+    setTimeout(() => {
       setIsSubmitting(false);
-    }
+      setShowModal(true);
+    }, 800);
   };
 
   const closeModal = () => {
@@ -131,7 +99,6 @@ const CustomerSummary: React.FC = () => {
           <div className={styles.contentBox}>{formData.message}</div>
         </div>
 
-        {/* 💡 추천 답변 출력 영역 (이미지 스타일 적용) */}
         <div className={styles.section}>
           <div className={styles.label}><ClipboardList size={16} /> 내가 확인한 답변</div>
           <div style={{ backgroundColor: '#FFF1F8', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -165,6 +132,7 @@ const CustomerSummary: React.FC = () => {
         </div>
       </div>
 
+      {/* 매칭 모달 영역 */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
           <div style={{ backgroundColor: 'white', padding: '40px 30px', borderRadius: '24px', textAlign: 'center', width: '85%', maxWidth: '400px', position: 'relative' }}>
@@ -177,9 +145,7 @@ const CustomerSummary: React.FC = () => {
             {isMatched ? (
               <>
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative' }}>
-                    <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
-                  </div>
+                  <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
                 </div>
                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사가 연결되었습니다!</h3>
                 <p style={{ color: '#6B7280', marginTop: '8px' }}>잠시 후 채팅방으로 입장합니다...</p>

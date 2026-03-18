@@ -35,6 +35,7 @@ export const header = style({
     justifyContent: "space-between",
     alignItems: "center",
     zIndex: 10,
+    flexShrink: 0, // 헤더 높이 유지
 });
 
 export const headerLeft = style({ display: "flex", alignItems: "center", gap: "12px" });
@@ -70,18 +71,30 @@ export const exitButton = style({
     ":hover": { opacity: 0.9, transform: "translateY(-1px)" },
 });
 
-/** * ✅ 메인 레이아웃 (옵션 2 적용)
- * 좌측 정보: 380px (조금 더 확장)
- * 중앙 채팅: 1fr (남은 모든 공간을 꽉 채움 - maxWidth 제거)
- * 우측 FAQ: 550px (긴 텍스트 가독성을 위해 대폭 확장)
+/** * ✅ 메인 레이아웃 반응형 수정
+ * 고정 너비(380px, 550px)를 minmax로 변경하여 화면이 좁아질 때 사이드바도 함께 줄어들게 합니다.
  */
 export const mainLayout = style({
     flex: 1,
     display: "grid",
-    gridTemplateColumns: "380px 1fr 550px", 
+    // 💡 변경: 좌측 280~380px, 중앙 남은공간, 우측 320~550px로 유연하게 설정
+    gridTemplateColumns: "minmax(280px, 380px) 1fr minmax(320px, 550px)", 
     gap: "1px",
     backgroundColor: "#E5E7EB",
     overflow: "hidden",
+
+    "@media": {
+        // 1440px 이하: 우측 FAQ를 더 좁게 조절
+        "screen and (max-width: 1440px)": {
+            gridTemplateColumns: "280px 1fr 350px",
+        },
+        // 1200px 이하: 공간 확보를 위해 우측 FAQ를 하단으로 내리거나 숨길 수 있도록 grid 해제 가능
+        // 여기서는 사라짐 방지를 위해 grid 대신 flex로 전환하여 요소들이 밀리지 않게 합니다.
+        "screen and (max-width: 1200px)": {
+            display: "flex",
+            flexDirection: "row",
+        }
+    }
 });
 
 export const sideSection = style({
@@ -91,6 +104,8 @@ export const sideSection = style({
     flexDirection: "column",
     gap: "20px",
     overflowY: "auto",
+    flexShrink: 1, // 공간 부족 시 사이드바도 줄어들게 허용
+    flexBasis: "auto",
 });
 
 export const card = style({
@@ -108,15 +123,15 @@ export const avatar = style({ width: "72px", height: "72px", borderRadius: "50%"
 export const infoItem = style({ display: "flex", alignItems: "center", gap: "10px", fontSize: "13.5px", color: "#4B5563", padding: "8px 0" });
 export const eyeBtn = style({ marginLeft: "auto", color: "#9CA3AF", ":hover": { color: UPLUS_MAGENTA } });
 
-/** * ✅ 채팅 영역 수정 (화면 꽉 채우기)
- * maxWidth를 제거하여 사이드바 사이의 공간을 완전히 메웁니다.
+/** * ✅ 채팅 영역 수정
+ * minWidth: 0을 통해 사이드바에 밀려 사라지지 않고 영역을 유지합니다.
  */
 export const chatSection = style({
     backgroundColor: "#FFF",
     display: "flex",
     flexDirection: "column",
-    minWidth: "0", 
-    width: "100%",
+    minWidth: "0", // 💡 매우 중요: flex 내부에서 자식 요소가 0까지 줄어들 수 있게 허용
+    flex: 1, // 남은 공간을 전부 차지
     borderLeft: "1px solid #E5E7EB",
     borderRight: "1px solid #E5E7EB",
 });
@@ -131,11 +146,27 @@ export const messageList = style({
     backgroundColor: "#FFF",
 });
 
-/** * 화면이 넓어졌으므로 말풍선이 너무 길게 늘어지지 않도록 
- * 최대 너비를 65% 정도로 조정하여 대화 가독성을 높였습니다.
- */
-export const customerMsg = style({ alignSelf: "flex-start", display: "flex", flexDirection: "column", alignItems: "flex-start", maxWidth: "65%" });
-export const agentMsg = style({ alignSelf: "flex-end", display: "flex", flexDirection: "column", alignItems: "flex-end", maxWidth: "65%" });
+export const customerMsg = style({ 
+    alignSelf: "flex-start", 
+    display: "flex", 
+    flexDirection: "column", 
+    alignItems: "flex-start", 
+    maxWidth: "85%", // 💡 가독성을 위해 너비 비율 조정
+    "@media": {
+        "screen and (min-width: 1440px)": { maxWidth: "65%" }
+    }
+});
+
+export const agentMsg = style({ 
+    alignSelf: "flex-end", 
+    display: "flex", 
+    flexDirection: "column", 
+    alignItems: "flex-end", 
+    maxWidth: "85%", // 💡 가독성을 위해 너비 비율 조정
+    "@media": {
+        "screen and (min-width: 1440px)": { maxWidth: "65%" }
+    }
+});
 
 export const bubble = style({
     width: "fit-content",
@@ -145,7 +176,7 @@ export const bubble = style({
     fontSize: "14.5px",
     lineHeight: "1.5",
     whiteSpace: "pre-wrap", 
-    wordBreak: "keep-all",
+    wordBreak: "break-word", // 💡 긴 단어 줄바꿈
     selectors: {
         [`${customerMsg} &`]: { backgroundColor: "#F3F4F6", color: UPLUS_BLACK, borderBottomLeftRadius: "2px" },
         [`${agentMsg} &`]: { backgroundColor: UPLUS_MAGENTA, color: "#FFF", borderBottomRightRadius: "2px" },
@@ -156,7 +187,7 @@ export const typingBubble = style({ backgroundColor: "#F3F4F6", padding: "12px 1
 export const dot = style({ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#9CA3AF", animation: `${dotTyping} 1.4s infinite ease-in-out`, selectors: { "&:nth-child(2)": { animationDelay: "0.2s" }, "&:nth-child(3)": { animationDelay: "0.4s" } } });
 export const msgTime = style({ fontSize: "11px", color: "#9CA3AF", marginTop: "4px" });
 
-export const chatFooter = style({ padding: "20px 24px", backgroundColor: "#F9FAFB", borderTop: "1px solid #E5E7EB" });
+export const chatFooter = style({ padding: "20px 24px", backgroundColor: "#F9FAFB", borderTop: "1px solid #E5E7EB", flexShrink: 0 });
 export const aiGuideHeader = style({ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 800, color: AI_BLUE, marginBottom: "12px" });
 export const aiSuggestRow = style({ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" });
 export const aiSuggestBtn = style({ fontSize: "12px", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${AI_SOFT_BLUE}`, backgroundColor: "#FFF", color: AI_BLUE, fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)", transition: "all 0.2s", ":hover": { borderColor: AI_BLUE, backgroundColor: AI_SOFT_BLUE, transform: "translateY(-2px)" } });
