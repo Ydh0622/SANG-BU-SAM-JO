@@ -140,6 +140,10 @@ export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[
 export const getConsultationDetail = (consultationId: string | number) => 
     apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader());
 
+/** 상담 컨텍스트 조회 (캐시) */
+export const getConsultationContext = (consultationId: string | number) =>
+    apiStore.get(`/v1/consultations/${consultationId}/context`, getAuthHeader());
+
 /** 상담 메시지 전송 */
 export const sendConsultationMessage = (consultationId: string | number, message: string) => 
     apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
@@ -147,4 +151,9 @@ export const sendConsultationMessage = (consultationId: string | number, message
 /** 상담 종료 */
 export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {
     return await apiStore.post(`/v1/consultations/${consultationId}/end`, data, getAuthHeader());
+};
+
+/** FAQ 피드백 (도움됨 체크된 FAQ ID 전송) */
+export const submitFaqFeedback = async (consultationId: string | number, kbIds: number[]): Promise<void> => {
+    await apiStore.post(`/v1/consultations/${consultationId}/faq-feedback`, { kbIds }, getAuthHeader());
 };

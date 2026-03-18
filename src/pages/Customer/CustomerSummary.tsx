@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, MessageSquare, ClipboardList, User, ArrowRight, X, Loader2, CheckCircle2 } from "lucide-react";
 import * as styles from "./Style/CustomerSummary.css.ts";
 
-import { createConsultation } from "../../api/services/consultation";
+import { createConsultation, submitFaqFeedback } from "../../api/services/consultation";
 import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
 
 type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
@@ -25,6 +25,7 @@ interface FaqItem {
 interface LocationState {
   formData: CustomerFormData;
   selectedFaqContent: FaqItem[];
+  allFeedbacks: Record<string, "like" | "dislike" | null>;
 }
 
 const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
@@ -48,6 +49,7 @@ const CustomerSummary: React.FC = () => {
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
+  const allFeedbacks = state?.allFeedbacks || {};
 
   // [로직 통합] 매칭 감시
   useEffect(() => {
@@ -102,8 +104,19 @@ const CustomerSummary: React.FC = () => {
         }));
 
         localStorage.setItem("currentConsultationId", consultationId.toString());
-        localStorage.setItem("isMatched", "false"); 
-        setShowModal(true); 
+        localStorage.setItem("isMatched", "false");
+
+        // 도움됐다고 체크한 FAQ ID 전송
+        const likedKbIds = Object.entries(allFeedbacks)
+            .filter(([key, val]) => key !== "AI" && val === "like")
+            .map(([key]) => Number(key))
+            .filter(id => !isNaN(id) && id > 0);
+
+        if (likedKbIds.length > 0) {
+            submitFaqFeedback(consultationId, likedKbIds).catch(() => {});
+        }
+
+        setShowModal(true);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "상담 신청 실패";
