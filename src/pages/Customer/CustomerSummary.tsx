@@ -119,8 +119,13 @@ const CustomerSummary: React.FC = () => {
         setShowModal(true);
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "상담 신청 실패";
-      alert(message);
+      const axiosError = error as { response?: { data?: { code?: string; message?: string }; status?: number } };
+      if (axiosError?.response?.status === 409 && axiosError?.response?.data?.code === "CONSULT_DUPLICATE") {
+        alert("이미 대기 중인 상담이 있습니다.\n상담사가 연결될 때까지 기다려 주세요.");
+      } else {
+        const message = error instanceof Error ? error.message : "상담 신청 실패";
+        alert(message);
+      }
       setShowModal(false);
     } finally {
       setIsSubmitting(false);
