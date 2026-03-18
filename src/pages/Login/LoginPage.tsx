@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
           const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", realName);
 
-          const realUserId = userInfo?.id || response.user?.id || response.data?.user?.id || response.data?.agentId || "1"; 
+          const realUserId = userInfo?.userId || response.user?.id || response.data?.user?.id || response.data?.agentId || "1";
           localStorage.setItem("userId", String(realUserId));
 
           console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName} (ID: ${realUserId})`);

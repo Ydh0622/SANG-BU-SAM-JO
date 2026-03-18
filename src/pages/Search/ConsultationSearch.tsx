@@ -6,7 +6,6 @@ import {
     ChevronRight,
     ChevronsLeft,  
     ChevronsRight,
-    ClipboardList,
     Clock,
     Download,
     ExternalLink,
@@ -54,27 +53,23 @@ const ConsultationSearch: React.FC = () => {
     const itemsPerPage = 10;
     const pagesPerBlock = 5;
 
-    const buildEsRequest = useCallback((page: number) => {
-        const currentAgentId = Number(localStorage.getItem("userId") || 0);
-
-        return {
-            keyword: searchTerm.trim() || undefined,
-            agent_id: activeFilter === "MINE" ? currentAgentId : undefined,
-            date_from: searchDate ? `${searchDate}T00:00:00` : undefined,
-            date_to: searchDate ? `${searchDate}T23:59:59` : undefined,
-            final_result_code: activeFilter === "REPEAT" ? "TRANSFERRED" : undefined,
-            page,
-            size: itemsPerPage,
-        };
-    }, [searchTerm, activeFilter, searchDate]);
-
-    const loadSearchData = useCallback(async (page = 1) => {
+    const loadSearchData = useCallback(async (page = 1, filter = activeFilter) => {
         try {
             setIsLoading(true);
             const currentAgentId = Number(localStorage.getItem("userId") || 0);
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
-            const response = await searchConsultations(buildEsRequest(page));
+            const req = {
+                keyword: searchTerm.trim() || undefined,
+                agent_id: filter === "MINE" ? currentAgentId : undefined,
+                date_from: searchDate ? `${searchDate}T00:00:00` : undefined,
+                date_to: searchDate ? `${searchDate}T23:59:59` : undefined,
+                final_result_code: filter === "REPEAT" ? "TRANSFERRED" : undefined,
+                page,
+                size: itemsPerPage,
+            };
+
+            const response = await searchConsultations(req);
             const hits: ConsultationSearchHit[] = response.hits ?? [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -116,13 +111,12 @@ const ConsultationSearch: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [buildEsRequest]);
+    }, [searchTerm, searchDate, activeFilter]);
 
     useEffect(() => {
         loadSearchData(1);
-        // activeFilter 변경 시에만 재조회 (키워드/날짜는 검색 버튼으로 수동 실행)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeFilter]);
+    }, []);
 
     const currentItems = allResults;
     const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -162,12 +156,11 @@ const ConsultationSearch: React.FC = () => {
                     { label: "전체 내역", value: "ALL", icon: <Filter size={16} /> },
                     { label: "나의 상담", value: "MINE", icon: <UserCheck size={16} /> },
                     { label: "부서 이관", value: "REPEAT", icon: <ExternalLink size={16} /> },
-                    { label: "기록 대기중", value: "PENDING", icon: <ClipboardList size={16} /> },
                 ].map((btn) => (
                     <button
                         key={btn.value}
                         type="button"
-                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); }}
+                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); loadSearchData(1, btn.value); }}
                         style={{
                             display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "16px",
                             fontSize: "14px", fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
