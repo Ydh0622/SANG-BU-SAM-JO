@@ -140,6 +140,10 @@ export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[
 export const getConsultationDetail = (consultationId: string | number) => 
     apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader());
 
+/** 상담 컨텍스트 조회 (캐시) */
+export const getConsultationContext = (consultationId: string | number) =>
+    apiStore.get(`/v1/consultations/${consultationId}/context`, getAuthHeader());
+
 /** 상담 메시지 전송 */
 export const sendConsultationMessage = (consultationId: string | number, message: string) => 
     apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
