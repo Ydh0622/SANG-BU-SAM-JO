@@ -64,6 +64,17 @@ interface TendencyInfo {
     sentimentLabel: string | null;
 }
 
+interface CustomerContext {
+    name: string | null;
+    grade: string | null;
+    gender: string | null;
+    age: number | null;
+    totalConsultCount: number | null;
+    lastConsultedAt: string | null;
+    phoneMask: string | null;
+    emailMask: string | null;
+}
+
 // --- Component ---
 
 const ConsultationDetail: React.FC = () => {
@@ -78,6 +89,7 @@ const ConsultationDetail: React.FC = () => {
     
     const [recentHistories, setRecentHistories] = useState<RecentHistory[]>([]);
     const [tendencyInfo, setTendencyInfo] = useState<TendencyInfo | null>(null);
+    const [customerCtx, setCustomerCtx] = useState<CustomerContext | null>(null);
 
     const [isTyping, setIsTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
@@ -146,12 +158,15 @@ const handleSelectFaq = (id: string, status: boolean) => {
     }, [messages, customerInfo]);
 
     useEffect(() => {
+        let active = true;
+
         const loadDetailAndAssign = async () => {
             if (!customerId) return;
             try {
                 setIsLoading(true);
                 const response = await getConsultationDetail(customerId);
-                
+                if (!active) return;
+
                 const resObj = response as unknown as ConsultationDetailResponse;
                 const actualData = (resObj && resObj.data) ? resObj.data : (response as unknown as ExtendedConsultationResponse);
 
@@ -179,18 +194,49 @@ const handleSelectFaq = (id: string, status: boolean) => {
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }]);
 
-                fetchSimilarFaqs(firstMsgText);
-
                 // 컨텍스트 캐시 조회 (최근 상담 + 성향)
                 try {
                     const ctx = await getConsultationContext(customerId) as { data?: Record<string, unknown> } & Record<string, unknown>;
                     const ctxData = (ctx?.data ?? ctx) as {
+                        customer?: {
+                            name?: string; grade?: string; gender?: string; age?: number;
+                            totalConsultCount?: number; lastConsultedAt?: string;
+                            phoneMask?: string; emailMask?: string;
+                        };
                         recentConsultations?: {
                             endedAt?: string; productLineCode?: string; summaryText?: string;
                             sentimentLabel?: string; anxietyLevel?: string;
                             priceSensitivity?: string; decisionStyle?: string;
                         }[];
+                        faqList?: {
+                            kbId?: number; productLineCode?: string;
+                            request?: string; answer?: string;
+                        }[];
                     };
+
+                    if (ctxData?.faqList && ctxData.faqList.length > 0) {
+                        setSimilarFaqs(ctxData.faqList.map((f, idx) => ({
+                            faq_id: f.kbId ? String(f.kbId) : `faq-${idx}`,
+                            question: f.request ?? "-",
+                            answer: f.answer ?? "-",
+                            similarity_score: 0,
+                            isSelected: undefined,
+                        })));
+                    }
+
+                    if (ctxData?.customer) {
+                        const c = ctxData.customer;
+                        setCustomerCtx({
+                            name: c.name ?? null,
+                            grade: c.grade ?? null,
+                            gender: c.gender ?? null,
+                            age: c.age ?? null,
+                            totalConsultCount: c.totalConsultCount ?? null,
+                            lastConsultedAt: c.lastConsultedAt ?? null,
+                            phoneMask: c.phoneMask ?? null,
+                            emailMask: c.emailMask ?? null,
+                        });
+                    }
 
                     if (ctxData?.recentConsultations) {
                         setRecentHistories(ctxData.recentConsultations.map((r) => {
@@ -230,6 +276,7 @@ const handleSelectFaq = (id: string, status: boolean) => {
             }
         };
         loadDetailAndAssign();
+        return () => { active = false; };
     }, [customerId, fetchSimilarFaqs, navigate]);
 
     const handleSend = useCallback(async () => {
@@ -341,23 +388,34 @@ const handleFinalComplete = async () => {
                     <article className={styles.card}>
                         <div className={styles.cardHeader}>
                             <h3 className={styles.cardTitle}>고객 정보</h3>
-                            <span className={styles.badgeVIP}>VIP Platinum</span>
+                            {customerCtx?.grade && (
+                                <span className={styles.badgeVIP}>{customerCtx.grade}</span>
+                            )}
                         </div>
                         <div className={styles.avatar} style={{ margin: "0 auto 16px" }}><User size={40} color="#E6007E" /></div>
                         <div style={{ textAlign: "center", marginBottom: "16px" }}>
-                            <strong>{customerInfo?.customer_name}</strong>
-                            <p style={{ color: "#E6007E", fontWeight: 800, fontSize: "12px" }}>LG U+ 최우수 고객</p>
+                            <strong>{customerCtx?.name ?? customerInfo?.customer_name}</strong>
+                            {customerCtx?.age && customerCtx?.gender && (
+                                <p style={{ color: "#666", fontSize: "12px", margin: "2px 0 0" }}>
+                                    {customerCtx.gender === 'MALE' ? '남' : '여'} · {customerCtx.age}세
+                                </p>
+                            )}
+                            {customerCtx?.totalConsultCount != null && (
+                                <p style={{ color: "#E6007E", fontWeight: 800, fontSize: "12px", margin: "4px 0 0" }}>
+                                    누적 상담 {customerCtx.totalConsultCount}회
+                                </p>
+                            )}
                         </div>
                         <div className={styles.infoItem}>
                             <Phone size={16} color="#666" />
-                            <span>{isPhoneVisible ? (customerInfo?.contact_info) : "010-****-****"}</span>
+                            <span>{isPhoneVisible ? (customerInfo?.contact_info ?? customerCtx?.phoneMask) : (customerCtx?.phoneMask ?? "010-****-****")}</span>
                             <button type="button" onClick={() => setIsPhoneVisible(!isPhoneVisible)} style={{ marginLeft: "auto", background: 'none', border: 'none', cursor: 'pointer' }}>
                                 {isPhoneVisible ? <EyeOff size={14} color="#999" /> : <Eye size={14} color="#E6007E" />}
                             </button>
                         </div>
                         <div className={styles.infoItem}>
                             <Mail size={16} color="#666" />
-                            <span style={{ fontSize: "13px" }}>{customerInfo?.email}</span>
+                            <span style={{ fontSize: "13px" }}>{customerCtx?.emailMask ?? customerInfo?.email}</span>
                         </div>
                     </article>
 

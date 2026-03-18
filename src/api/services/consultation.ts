@@ -152,3 +152,8 @@ export const sendConsultationMessage = (consultationId: string | number, message
 export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {
     return await apiStore.post(`/v1/consultations/${consultationId}/end`, data, getAuthHeader());
 };
+
+/** FAQ 피드백 (도움됨 체크된 FAQ ID 전송) */
+export const submitFaqFeedback = async (consultationId: string | number, kbIds: number[]): Promise<void> => {
+    await apiStore.post(`/v1/consultations/${consultationId}/faq-feedback`, { kbIds }, getAuthHeader());
+};
