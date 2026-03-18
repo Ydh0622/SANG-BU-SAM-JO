@@ -30,7 +30,7 @@ export default defineConfig({
       },
  
       "/fastapi": {
-        target: "http://localhost:8000",
+        target: "http://172.28.145.111:8000",
         changeOrigin: true,
         secure: false,
       },

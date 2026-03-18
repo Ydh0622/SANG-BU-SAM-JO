@@ -320,6 +320,16 @@ const Dashboard: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
+    useEffect(() => {
+        if (workStatus !== "AVAILABLE" || assignedCustomer) return;
+
+        const interval = setInterval(() => {
+            assignNextCustomer();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [workStatus, assignedCustomer, assignNextCustomer]);
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
