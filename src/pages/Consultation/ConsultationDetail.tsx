@@ -104,18 +104,6 @@ const ConsultationDetail: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
 
-    const handleSelectFaq = (id: string, status: boolean) => {
-        setSimilarFaqs(prev => prev.map(faq => {
-            if (faq.faq_id === id) {
-                return { 
-                    ...faq, 
-                    isSelected: faq.isSelected === status ? undefined : status 
-                };
-            }
-            return faq;
-        }));
-    };
-
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -211,16 +199,17 @@ const ConsultationDetail: React.FC = () => {
                         faqList?: {
                             kbId?: number; productLineCode?: string;
                             request?: string; answer?: string;
+                            customerLiked?: boolean | null;
                         }[];
                     };
 
                     if (ctxData?.faqList && ctxData.faqList.length > 0) {
-                        setSimilarFaqs(ctxData.faqList.map((f, idx) => ({
+                        setSimilarFaqs(ctxData.faqList.map((f: typeof ctxData.faqList[0] & { customerLiked?: boolean | null }, idx: number) => ({
                             faq_id: f.kbId ? String(f.kbId) : `faq-${idx}`,
                             question: f.request ?? "-",
                             answer: f.answer ?? "-",
                             similarity_score: 0,
-                            isSelected: undefined,
+                            isSelected: f.customerLiked === true ? true : f.customerLiked === false ? false : undefined,
                         })));
                     }
 
@@ -503,53 +492,33 @@ const ConsultationDetail: React.FC = () => {
                         <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 사전 FAQ 결과</h3>
                         <div className={styles.faqWrapper}>
                             {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
-                                <div key={faq.faq_id} 
-                                     className={styles.faqItem} 
-                                     style={{ 
+                                <div key={faq.faq_id}
+                                     className={styles.faqItem}
+                                     style={{
                                          position: 'relative',
-                                         padding: '16px', 
+                                         padding: '16px',
                                          borderBottom: '1px solid #f0f0f0',
                                          backgroundColor: faq.isSelected === true ? '#F0F7FF' : faq.isSelected === false ? '#FFF1F0' : 'transparent',
-                                         transition: 'all 0.2s ease'
                                      }}>
-                                    
-                                    <div style={{ 
-                                        position: 'absolute', 
-                                        top: '12px', 
-                                        right: '12px', 
-                                        display: 'flex', 
-                                        gap: '6px' 
+
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '12px',
+                                        right: '12px',
+                                        width: '24px', height: '24px', borderRadius: '6px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        backgroundColor: faq.isSelected === true ? '#52c41a' : faq.isSelected === false ? '#ff4d4f' : '#f0f0f0',
                                     }}>
-                                        <button 
-                                            onClick={() => handleSelectFaq(faq.faq_id, true)}
-                                            style={{
-                                                width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #d9d9d9',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                                backgroundColor: faq.isSelected === true ? '#52c41a' : '#fff',
-                                                color: faq.isSelected === true ? '#fff' : '#d9d9d9'
-                                            }}
-                                        >
-                                            <Check size={14} strokeWidth={3} />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleSelectFaq(faq.faq_id, false)}
-                                            style={{
-                                                width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #d9d9d9',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                                backgroundColor: faq.isSelected === false ? '#ff4d4f' : '#fff',
-                                                color: faq.isSelected === false ? '#fff' : '#d9d9d9'
-                                            }}
-                                        >
-                                            <X size={14} strokeWidth={3} />
-                                        </button>
+                                        {faq.isSelected === true && <Check size={14} color="#fff" strokeWidth={3} />}
+                                        {faq.isSelected === false && <X size={14} color="#fff" strokeWidth={3} />}
                                     </div>
 
-                                    <div style={{ paddingRight: '60px' }}>
+                                    <div style={{ paddingRight: '40px' }}>
                                         <p style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>{faq.question}</p>
                                         <p style={{ fontSize: '13px', color: '#666', margin: 0, lineHeight: '1.5' }}>{faq.answer}</p>
                                     </div>
                                 </div>
-                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', padding: '20px' }}>데이터가 없습니다.</p>}
+                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', padding: '20px' }}>고객이 사전 FAQ를 확인하지 않았습니다.</p>}
                         </div>
                     </article>
 

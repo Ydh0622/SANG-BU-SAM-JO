@@ -15,6 +15,7 @@ export interface CreateConsultationRequest {
     issueTypeId: number;
     priority: "HIGH" | "MID" | "LOW";
     initialMessage: string;
+    faqSessionId?: string;
 }
 
 export interface CreateConsultationResponse {
@@ -157,7 +158,13 @@ export const endConsultation = async (consultationId: string | number, data: Con
     return await apiStore.post(`/v1/consultations/${consultationId}/end`, data, getAuthHeader());
 };
 
-/** FAQ 피드백 (도움됨 체크된 FAQ ID 전송) */
-export const submitFaqFeedback = async (consultationId: string | number, kbIds: number[]): Promise<void> => {
-    await apiStore.post(`/v1/consultations/${consultationId}/faq-feedback`, { kbIds }, getAuthHeader());
+export interface FaqFeedbackItem {
+    question: string;
+    answer: string;
+    liked: boolean | null;
+}
+
+/** FAQ 세션 저장 (상담 신청 전 ES 결과 + 고객 피드백을 Redis에 미리 저장) */
+export const storeFaqSession = async (sessionId: string, faqs: FaqFeedbackItem[]): Promise<void> => {
+    await apiStore.post(`/v1/consultations/faq-sessions`, { sessionId, faqs });
 };

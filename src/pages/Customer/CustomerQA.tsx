@@ -4,6 +4,8 @@ import { Search, MessageCircle, Check, X, ArrowLeft, Sparkles } from "lucide-rea
 import * as styles from "./Style/CustomerQA.css.ts";
 import { getSimilarFaq } from "../../api/services/faq";
 import type { FaqItem } from "../../api/services/faq";
+import { storeFaqSession } from "../../api/services/consultation";
+import type { FaqFeedbackItem } from "../../api/services/consultation";
 
 interface CustomerFormData {
   name: string;
@@ -28,6 +30,7 @@ const CustomerQA: React.FC = () => {
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
     const [feedbacks, setFeedbacks] = useState<Record<string, FeedbackStatus>>({});
+    const [sessionId] = useState<string>(() => crypto.randomUUID());
     const aiFeedback = feedbacks["AI"];
 
     // Apply에서 넘겨준 state를 안전하게 가져옵니다.
@@ -65,7 +68,10 @@ const CustomerQA: React.FC = () => {
         fetchAnalysis();
     }, [fetchAnalysis]);
 
-    const isAllSelected = !isLoading;
+    const isAllSelected = !isLoading && (
+        dynamicFaqList.length === 0 ||
+        dynamicFaqList.every(faq => feedbacks[faq.faq_id] != null)
+    );
 
     const handleFeedback = (id: string, status: FeedbackStatus) => {
         setFeedbacks(prev => ({
@@ -74,8 +80,8 @@ const CustomerQA: React.FC = () => {
         }));
     };
 
-    /**  다음 단계로 이동 시 consultationId를 포함합니다. */
-    const handleNextStep = () => {
+    /**  다음 단계로 이동 시 FAQ 피드백을 Redis에 저장 후 이동합니다. */
+    const handleNextStep = async () => {
         if (!isAllSelected) return;
 
         const selectedFaqContent = dynamicFaqList
@@ -83,24 +89,37 @@ const CustomerQA: React.FC = () => {
             .map((faq: FaqItem) => {
                 const firstSentence = faq.answer.split('.')[0];
                 const summaryText = firstSentence.length > 100
-                    ? `${firstSentence.slice(0, 30)}...` 
+                    ? `${firstSentence.slice(0, 30)}...`
                     : firstSentence;
 
                 return {
                     ...faq,
-                    question: summaryText 
+                    question: summaryText
                 };
             });
 
-        //  Summary 페이지로 consultationId를 배달합니다.
-        navigate("/customer/summary", { 
-            state: { 
-                formData, 
-                consultationId, 
-                selectedFaqContent, 
+        // FAQ 피드백을 Redis에 미리 저장
+        if (dynamicFaqList.length > 0) {
+            const faqPayload: FaqFeedbackItem[] = dynamicFaqList.map(faq => ({
+                question: faq.question,
+                answer: faq.answer,
+                liked: feedbacks[faq.faq_id] === "like" ? true : feedbacks[faq.faq_id] === "dislike" ? false : null,
+            }));
+            await storeFaqSession(sessionId, faqPayload).catch(err =>
+                console.warn("FAQ 세션 저장 실패 (무시):", err)
+            );
+        }
+
+        navigate("/customer/summary", {
+            state: {
+                formData,
+                consultationId,
+                selectedFaqContent,
+                allFaqs: dynamicFaqList,
+                faqSessionId: dynamicFaqList.length > 0 ? sessionId : undefined,
                 aiFeedback: feedbacks["AI"],
-                allFeedbacks: feedbacks 
-            } 
+                allFeedbacks: feedbacks
+            }
         });
     };
 

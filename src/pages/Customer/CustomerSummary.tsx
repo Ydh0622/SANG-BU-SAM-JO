@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, MessageSquare, ClipboardList, User, ArrowRight, X, Loader2, CheckCircle2 } from "lucide-react";
 import * as styles from "./Style/CustomerSummary.css.ts";
 
-import { createConsultation, submitFaqFeedback } from "../../api/services/consultation";
+import { createConsultation } from "../../api/services/consultation";
 import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
 
 type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
@@ -24,7 +24,9 @@ interface FaqItem {
 interface LocationState {
   formData: CustomerFormData;
   selectedFaqContent: FaqItem[];
+  allFaqs: FaqItem[];
   allFeedbacks: Record<string, "like" | "dislike" | null>;
+  faqSessionId?: string;
 }
 
 const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
@@ -48,7 +50,7 @@ const CustomerSummary: React.FC = () => {
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
-  const allFeedbacks = state?.allFeedbacks || {};
+  const faqSessionId = state?.faqSessionId;
 
   // 매칭 감시 로직 (기존 유지)
   useEffect(() => {
@@ -86,7 +88,8 @@ const CustomerSummary: React.FC = () => {
         productLineCode: selectedCategory.code,
         issueTypeId: selectedCategory.id,
         priority: "MID",
-        initialMessage: formData.message
+        initialMessage: formData.message,
+        ...(faqSessionId ? { faqSessionId } : {})
       };
 
       const result: CreateConsultationResponse = await createConsultation(payload);
@@ -97,22 +100,15 @@ const CustomerSummary: React.FC = () => {
         localStorage.setItem("customerInquiry", formData.message);
         localStorage.setItem("consultationId", consultationId.toString());
         localStorage.setItem("isMatched", "false");
-
-        const likedKbIds = Object.entries(allFeedbacks)
-            .filter(([key, val]) => key !== "AI" && val === "like")
-            .map(([key]) => Number(key))
-            .filter(id => !isNaN(id) && id > 0);
-
-        if (likedKbIds.length > 0) {
-            submitFaqFeedback(consultationId, likedKbIds).catch(() => {});
-        }
-
         setShowModal(true);
       }
     } catch (error: unknown) {
       const axiosError = error as { response?: { data?: { code?: string }; status?: number } };
-      if (axiosError?.response?.status === 409 && axiosError?.response?.data?.code === "CONSULT_DUPLICATE") {
+      const code = axiosError?.response?.data?.code;
+      if (axiosError?.response?.status === 409 && code === "CONSULT_DUPLICATE") {
         alert("이미 대기 중인 상담이 있습니다.\n상담사가 연결될 때까지 기다려 주세요.");
+      } else if (axiosError?.response?.status === 409 && code === "CONSULT_DUPLICATE_IN_PROGRESS") {
+        alert("이미 진행 중인 상담이 있습니다.\n상담사와 연결된 채팅창을 확인해 주세요.");
       } else {
         const message = error instanceof Error ? error.message : "상담 신청 실패";
         alert(message);
