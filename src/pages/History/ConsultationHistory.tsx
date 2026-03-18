@@ -11,7 +11,7 @@ import {
 import type React from "react";
 import { useState, useEffect } from "react"; 
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchSearchList } from "../../api/services/search"; 
+import { getConsultationDetail } from "../../api/services/search";
 import * as styles from "./Style/HistoryDetail.css.ts";
 
 /** 1. ERD 명세 기반 타입 정의 */
@@ -48,27 +48,46 @@ const ConsultationHistory: React.FC = () => {
     /** 서버에서 상세 데이터 가져오기 */
     useEffect(() => {
         const loadDetail = async () => {
+            if (!historyId) return;
             try {
                 setIsLoading(true);
-                const response = await fetchSearchList("ALL");
-                const found = response.data.find(item => String(item.consultationId) === historyId);
+                const PRODUCT_LINE_LABEL: Record<string, string> = {
+                    MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
+                    TELEPHONE: "유선전화", ETC: "기타",
+                };
 
-                if (found) {
-                    setHistoryData({
-                        consultation_id: String(found.consultationId),
-                        started_at: found.startedAt ? found.startedAt.replace('T', ' ').split('.')[0] : "기록 없음",
-                        ended_at: found.endedAt ? found.endedAt.split('T')[1].split('.')[0] : "진행중",
-                        duration: found.startedAt && found.endedAt ? "계산됨" : "-",
-                        customer_name: found.customerName || "이름 없음",
-                        mask_phone: "010-****-****", 
-                        category_display: found.consultationCategory || "일반상담",
-                        agent_name: found.agentId ? `상담원 #${found.agentId}` : "미지정",
-                        customer_request: "과거 상담 이력 데이터입니다.",
-                        agent_action: found.summaryText || "조치 내역 없음",
-                        summary_text: found.summaryText || "요약 내역이 없습니다.",
-                        messages: [] 
-                    });
-                }
+                const detail = await getConsultationDetail(historyId);
+                if (!detail) return;
+
+                const calcDuration = (start: string | null, end: string | null): string => {
+                    if (!start || !end) return "-";
+                    const diff = Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+                    const m = Math.floor(diff / 60);
+                    const s = diff % 60;
+                    return `${m}분 ${s}초`;
+                };
+
+                setHistoryData({
+                    consultation_id: String(detail.consultation_id),
+                    started_at: detail.started_at ? detail.started_at.replace('T', ' ').split('.')[0] : "기록 없음",
+                    ended_at: detail.ended_at ? detail.ended_at.split('T')[1]?.split('.')[0] ?? "진행중" : "진행중",
+                    duration: calcDuration(detail.started_at, detail.ended_at),
+                    customer_name: detail.customer_name || (detail.customer_id ? `고객 #${detail.customer_id}` : "이름 없음"),
+                    mask_phone: detail.phone_mask || "정보 없음",
+                    category_display: PRODUCT_LINE_LABEL[detail.product_line_code ?? ""] ?? "일반상담",
+                    agent_name: detail.agent_name || (detail.agent_id ? `상담원 #${detail.agent_id}` : "미지정"),
+                    customer_request: detail.messages.find(m => m.sender_type === "CUSTOMER")?.content || detail.customer_request || "고객 요청 내역이 없습니다.",
+                    agent_action: detail.agent_action || "조치 내역이 없습니다.",
+                    summary_text: detail.summary_text || "요약 내역이 없습니다.",
+                    messages: detail.messages.map(m => ({
+                        id: m.message_seq,
+                        sender_type_code: (m.sender_type === "CUSTOMER" || m.sender_type === "AGENT" || m.sender_type === "SYSTEM")
+                            ? m.sender_type
+                            : "SYSTEM",
+                        content: m.content,
+                        sent_at: "",
+                    })),
+                });
             } catch (error) {
                 console.error("상세 데이터 로드 실패:", error);
             } finally {
@@ -76,7 +95,7 @@ const ConsultationHistory: React.FC = () => {
             }
         };
 
-        if (historyId) loadDetail();
+        loadDetail();
     }, [historyId]);
 
     if (isLoading) {

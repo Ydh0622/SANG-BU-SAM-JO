@@ -165,6 +165,6 @@ export interface FaqFeedbackItem {
 }
 
 /** FAQ 세션 저장 (상담 신청 전 ES 결과 + 고객 피드백을 Redis에 미리 저장) */
-export const storeFaqSession = async (sessionId: string, faqs: FaqFeedbackItem[]): Promise<void> => {
-    await apiStore.post(`/v1/consultations/faq-sessions`, { sessionId, faqs });
+export const storeFaqSession = async (sessionId: string, faqs: FaqFeedbackItem[], aiAnswer?: string, aiAnswerLiked?: boolean | null): Promise<void> => {
+    await apiStore.post(`/v1/consultations/faq-sessions`, { sessionId, faqs, aiAnswer, aiAnswerLiked });
 };

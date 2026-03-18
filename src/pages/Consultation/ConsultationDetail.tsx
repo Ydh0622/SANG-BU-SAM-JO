@@ -90,6 +90,8 @@ const ConsultationDetail: React.FC = () => {
     const [recentHistories, setRecentHistories] = useState<RecentHistory[]>([]);
     const [tendencyInfo, setTendencyInfo] = useState<TendencyInfo | null>(null);
     const [customerCtx, setCustomerCtx] = useState<CustomerContext | null>(null);
+    const [faqAiAnswer, setFaqAiAnswer] = useState<string | null>(null);
+    const [faqAiAnswerLiked, setFaqAiAnswerLiked] = useState<boolean | null>(null);
 
     const [isTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
@@ -143,7 +145,7 @@ const ConsultationDetail: React.FC = () => {
         } catch (error) {
             console.error("파일 다운로드 실패:", error);
         }
-    }, [messages, customerInfo]);
+    }, [messages, customerInfo, customerCtx?.name]);
 
     useEffect(() => {
         let active = true;
@@ -201,7 +203,16 @@ const ConsultationDetail: React.FC = () => {
                             request?: string; answer?: string;
                             customerLiked?: boolean | null;
                         }[];
+                        faqAiAnswer?: string | null;
+                        faqAiAnswerLiked?: boolean | null;
                     };
+
+                    if (ctxData?.faqAiAnswer) {
+                        setFaqAiAnswer(ctxData.faqAiAnswer);
+                    }
+                    if (ctxData?.faqAiAnswerLiked !== undefined) {
+                        setFaqAiAnswerLiked(ctxData.faqAiAnswerLiked ?? null);
+                    }
 
                     if (ctxData?.faqList && ctxData.faqList.length > 0) {
                         setSimilarFaqs(ctxData.faqList.map((f: typeof ctxData.faqList[0] & { customerLiked?: boolean | null }, idx: number) => ({
@@ -490,6 +501,35 @@ const ConsultationDetail: React.FC = () => {
 
                     <article className={styles.card}>
                         <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 사전 FAQ 결과</h3>
+                        {faqAiAnswer && (
+                            <div style={{
+                                backgroundColor: '#F0F7FF',
+                                border: '1px solid #BAD7F2',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginBottom: '12px',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <p style={{ fontSize: '11px', fontWeight: 700, color: '#0056B3', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Sparkles size={12} /> AI 종합 답변
+                                </p>
+                                {faqAiAnswerLiked !== null && (
+                                    <div style={{
+                                        width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        backgroundColor: faqAiAnswerLiked === true ? '#52c41a' : '#ff4d4f',
+                                    }}>
+                                        {faqAiAnswerLiked === true
+                                            ? <Check size={13} color="#fff" strokeWidth={3} />
+                                            : <X size={13} color="#fff" strokeWidth={3} />}
+                                    </div>
+                                )}
+                            </div>
+                                <p style={{ fontSize: '13px', color: '#333', margin: 0, lineHeight: '1.6', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                    {faqAiAnswer}
+                                </p>
+                            </div>
+                        )}
                         <div className={styles.faqWrapper}>
                             {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
                                 <div key={faq.faq_id}

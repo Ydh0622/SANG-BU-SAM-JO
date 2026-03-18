@@ -105,7 +105,8 @@ const CustomerQA: React.FC = () => {
                 answer: faq.answer,
                 liked: feedbacks[faq.faq_id] === "like" ? true : feedbacks[faq.faq_id] === "dislike" ? false : null,
             }));
-            await storeFaqSession(sessionId, faqPayload).catch(err =>
+            const aiAnswerLiked = feedbacks["AI"] === "like" ? true : feedbacks["AI"] === "dislike" ? false : null;
+            await storeFaqSession(sessionId, faqPayload, aiAnswer, aiAnswerLiked).catch(err =>
                 console.warn("FAQ 세션 저장 실패 (무시):", err)
             );
         }
