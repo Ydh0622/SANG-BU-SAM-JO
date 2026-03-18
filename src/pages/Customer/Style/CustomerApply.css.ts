@@ -25,10 +25,13 @@ const shimmer = keyframes({
 
 export const container = style({
     width: "100%",
-    minHeight: "100vh", // height 대신 minHeight로 내용이 길어질 경우 대비
-    backgroundColor: "#F3F4F6",
-    backgroundImage: `radial-gradient(at 0% 0%, hsla(331,100%,95%,1) 0, transparent 50%), 
-                      radial-gradient(at 100% 100%, hsla(210,100%,92%,1) 0, transparent 50%)`,
+    minHeight: "100vh",
+    backgroundImage: `
+        radial-gradient(ellipse at 15% 15%, rgba(230,0,126,0.10) 0%, transparent 45%),
+        radial-gradient(ellipse at 85% 85%, rgba(37,99,235,0.07) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 0%, rgba(255,79,163,0.07) 0%, transparent 35%)
+    `,
+    backgroundColor: "#F0F2F8",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -72,14 +75,14 @@ export const iconCircle = style({
     width: "60px",
     height: "60px",
     borderRadius: "20px",
-    backgroundColor: UPLUS_SOFT_PINK,
+    background: `linear-gradient(135deg, #C5006C 0%, ${UPLUS_MAGENTA} 60%, #FF4FA3 100%)`,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     margin: "0 auto 16px",
-    boxShadow: `0 10px 20px ${UPLUS_SOFT_PINK}`,
+    boxShadow: `0 12px 24px rgba(230, 0, 126, 0.3)`,
     animation: `${float} 3s ease-in-out infinite`,
-    
+
     "@media": {
         "screen and (min-width: 768px)": {
             width: "72px",

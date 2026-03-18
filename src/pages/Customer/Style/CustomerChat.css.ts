@@ -25,7 +25,11 @@ export const loadingContainer = style({
 export const container = style({
     width: "100%",
     height: "100vh",
-    backgroundColor: "#F3F4F6",
+    background: `
+        radial-gradient(ellipse at 20% 20%, rgba(230,0,126,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(0,122,255,0.04) 0%, transparent 50%),
+        #F3F4F6
+    `,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -37,43 +41,51 @@ export const phoneFrame = style({
     height: "820px",
     backgroundColor: "#F9FAFB",
     borderRadius: "48px",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.10)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    border: "12px solid #1A1A1A",
+    border: "12px solid #111",
     position: "relative",
 });
 
 export const chatHeader = style({
-    padding: "24px",
-    backgroundColor: "#FFF",
-    borderBottom: "1px solid #EEE",
+    padding: "20px 24px",
+    background: "linear-gradient(135deg, #1A1A1A 0%, #2D0018 60%, #3D0022 100%)",
+    borderBottom: "none",
     display: "flex",
     alignItems: "center",
     gap: "16px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+    color: "#FFF",
 });
 
 export const backBtn = style({
-    background: "none",
-    border: "none",
+    background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.15)",
     cursor: "pointer",
-    color: "#666",
+    color: "#FFF",
     display: "flex",
     alignItems: "center",
+    borderRadius: "10px",
+    padding: "6px",
+    transition: "all 0.2s",
+    ":hover": { background: "rgba(255,255,255,0.2)" },
 });
 
 export const homeBtn = style({
-    background: "none",
-    border: "none",
+    background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.15)",
     cursor: "pointer",
     padding: "8px",
-    color: "#333",
+    color: "#FFF",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "transform 0.2s",
+    borderRadius: "10px",
+    transition: "all 0.2s",
     ":active": { transform: "scale(0.9)" },
+    ":hover": { background: "rgba(255,255,255,0.2)" },
 });
 
 export const chatArea = style({
