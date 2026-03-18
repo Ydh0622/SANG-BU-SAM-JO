@@ -372,6 +372,7 @@ const badgeBase = style({
     borderRadius: "6px",
     fontSize: "11px",
     fontWeight: 900,
+    lineHeight: 1,            // 폰트 라인박스를 줄여 수직 중앙 정렬 보정
     flexShrink: 0,
 });
 
@@ -379,6 +380,10 @@ export const alertLevelBadge = styleVariants({
     CRITICAL: [badgeBase, { backgroundColor: UPLUS_MAGENTA, color: "#FFF" }],
     HIGH: [badgeBase, { backgroundColor: "#F97316", color: "#FFF" }],
     MID: [badgeBase, { backgroundColor: AI_BLUE, color: "#FFF" }],
+});
+
+export const alertLevelText = style({
+    paddingTop: "1px",
 });
 
 export const alertText = style({

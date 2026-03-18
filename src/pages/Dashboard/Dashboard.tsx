@@ -365,7 +365,10 @@ const Dashboard: React.FC = () => {
                 <div className={styles.dashboardGrid}>
                     <div className={styles.mainContentLeft}>
                         <div className={styles.alertBanner}>
-                            <div className={styles.alertLevelBadge.CRITICAL}><AlertTriangle size={14} /> CRITICAL</div>
+                            <div className={styles.alertLevelBadge.CRITICAL}>
+                                <AlertTriangle size={14} />
+                                <span className={styles.alertLevelText}>CRITICAL</span>
+                            </div>
                             <p className={styles.alertText}>현재 서울 지역 IPTV 접속 장애 문의가 급증하고 있습니다.</p>
                             <button type="button" className={styles.alertLinkBtn} onClick={() => setShowGuide(true)}>가이드 보기</button>
                         </div>
