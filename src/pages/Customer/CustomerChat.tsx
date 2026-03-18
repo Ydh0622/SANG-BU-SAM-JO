@@ -133,7 +133,7 @@ const CustomerChat: React.FC = () => {
         inputRef.current?.focus();
 
         try {
-            await sendConsultationMessage(consultationId, { content: textToSend, senderType: "CUSTOMER" });
+            await sendConsultationMessage(consultationId, textToSend, "CUSTOMER");
         } catch (error) { console.warn(error); }
     }, [input, consultationId]);
 

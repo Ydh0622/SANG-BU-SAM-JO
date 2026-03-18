@@ -292,10 +292,7 @@ const ConsultationDetail: React.FC = () => {
     
     try {
        
-        await sendConsultationMessage(customerId, {
-            content: textToSend,
-            senderType: "AGENT" 
-        });
+        await sendConsultationMessage(customerId, textToSend, "AGENT");
     } catch (error) {
         console.warn("API 전송 실패:", error);
     }

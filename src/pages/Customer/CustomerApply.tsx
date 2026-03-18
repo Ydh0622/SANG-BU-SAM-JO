@@ -3,21 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { User, Phone, Mail, MessageCircle, ArrowRight, Send, ChevronDown } from "lucide-react";
 import * as styles from "./Style/CustomerApply.css.ts";
 
-import { createConsultation } from "../../api/services/consultation";
-import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
-
-/** * 
- * 기존 Response 타입에서 'data' 속성만 제외(Omit)하고, 
- * 서버 응답 구조에 맞게 consultationId가 어디에 있든 허용하는 새로운 타입을 병합합니다.
- */
-type FlexibleResponse = Omit<CreateConsultationResponse, 'data'> & {
-    consultationId?: number; 
-    data?: {
-        consultationId?: number;
-        status?: string;
-        createdAt?: string;
-    };
-};
 
 /** 카테고리 맵 */
 const CATEGORY_MAP: Record<string, { id: number; code: "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC" }> = {
@@ -47,7 +32,6 @@ const CustomerApply: React.FC = () => {
         message: ""   
     });
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -58,64 +42,15 @@ const CustomerApply: React.FC = () => {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
+
         if (!formData.category) {
             alert("문의 카테고리를 선택해주세요.");
             return;
         }
 
-        try {
-            setIsSubmitting(true);
-            const categoryInfo = CATEGORY_MAP[formData.category];
-
-            const requestPayload: CreateConsultationRequest = {
-                customerName: formData.name,
-                phone: formData.phone.replace(/-/g, ""), 
-                channel: "CHAT",
-                productLineCode: categoryInfo.code,
-                issueTypeId: categoryInfo.id,
-                priority: "MID",
-                initialMessage: formData.message
-            };
-
-            // 1. API 호출 후 FlexibleResponse로 타입 단언
-            const response = await createConsultation(requestPayload) as FlexibleResponse;
-        
-
-            /**  [ID 추출] 최상단 또는 data 내부에서 ID를 안전하게 가져옵니다. */
-            const cid = response.consultationId || response.data?.consultationId;
-
-            if (cid) {
-                const newId = String(cid);
-                
-                // 로컬 스토리지에 번호표 저장
-                localStorage.setItem("consultationId", newId);
-                localStorage.setItem("customerInquiry", JSON.stringify(formData));
-
-                // 2. QA 페이지로 이동 (ID 전달)
-                navigate("/customer/qa", { 
-                    state: { 
-                        formData, 
-                        consultationId: newId 
-                    } 
-                });
-            } else {
-                console.error(" ID 추출 실패:", response);
-                alert("상담 번호를 가져오지 못했습니다. 서버 응답 형식을 확인하세요.");
-            }
-
-        } catch (error: unknown) {
-            console.error(" 상담 신청 중 에러 발생:", error);
-            let errorMessage = "서버 통신 중 오류가 발생했습니다.";
-            if (error instanceof Error) {
-                errorMessage = error.message;
-            }
-            alert(errorMessage);
-        } finally {
-            setIsSubmitting(false);
-        }
+        navigate("/customer/qa", { state: { formData } });
     };
 
     return (
@@ -187,9 +122,9 @@ const CustomerApply: React.FC = () => {
                         </div>
                     </div>
 
-                    <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
+                    <button type="submit" className={styles.submitBtn}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                            {isSubmitting ? "상담 생성 중..." : "다음 단계로"} <ArrowRight size={20} />
+                            다음 단계로 <ArrowRight size={20} />
                         </div>
                     </button>
                 </form>

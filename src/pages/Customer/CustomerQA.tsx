@@ -65,11 +65,7 @@ const CustomerQA: React.FC = () => {
         fetchAnalysis();
     }, [fetchAnalysis]);
 
-    const isAllSelected = 
-        !isLoading &&
-        dynamicFaqList.length > 0 &&
-        dynamicFaqList.every(faq => feedbacks[faq.faq_id] !== undefined && feedbacks[faq.faq_id] !== null) &&
-        feedbacks["AI"] !== undefined && feedbacks["AI"] !== null;
+    const isAllSelected = !isLoading;
 
     const handleFeedback = (id: string, status: FeedbackStatus) => {
         setFeedbacks(prev => ({

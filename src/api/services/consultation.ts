@@ -149,8 +149,8 @@ export const getConsultationContext = (consultationId: string | number) =>
     apiStore.get(`/v1/consultations/${consultationId}/context`, getAuthHeader());
 
 /** 상담 메시지 전송 */
-export const sendConsultationMessage = (consultationId: string | number, message: string) => 
-    apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
+export const sendConsultationMessage = (consultationId: string | number, message: string, senderType?: string) =>
+    apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message, ...(senderType ? { senderType } : {}) }, getAuthHeader());
 
 /** 상담 종료 */
 export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {

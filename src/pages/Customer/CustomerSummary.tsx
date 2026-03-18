@@ -27,6 +27,15 @@ interface LocationState {
   allFeedbacks: Record<string, "like" | "dislike" | null>;
 }
 
+const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
+  "요금제/부가서비스": { id: 1, code: "MOBILE" },
+  "기기변경/신규가입": { id: 2, code: "MOBILE" },
+  "기술지원/장애문의": { id: 3, code: "MOBILE" },
+  "결합상품/인터넷": { id: 4, code: "INTERNET" },
+  "이벤트/멤버십": { id: 5, code: "MOBILE" },
+  "기타 문의": { id: 6, code: "ETC" }
+};
+
 const CustomerSummary: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,15 +72,11 @@ const CustomerSummary: React.FC = () => {
     return () => { if (checkTimer) clearInterval(checkTimer); };
   }, [showModal, isMatched, navigate]);
 
-  /**  상담 시작 버튼 로직 */
-  const handleStartChat = () => {
-    if (!consultationId) {
-      alert("상담 정보가 유효하지 않습니다. 다시 신청해주세요.");
-      navigate("/customer/apply");
-      return;
-    }
-
+  const handleStartChat = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
+
+    const selectedCategory = CATEGORY_MAP[formData.category] || CATEGORY_MAP["기타 문의"];
 
     try {
       const payload: CreateConsultationRequest = {
@@ -85,19 +90,14 @@ const CustomerSummary: React.FC = () => {
       };
 
       const result: CreateConsultationResponse = await createConsultation(payload);
-      const consultationId = result?.data?.consultationId ?? 
+      const consultationId = result?.data?.consultationId ??
                            (result as unknown as { consultationId: number }).consultationId;
 
       if (consultationId) {
-        localStorage.setItem("customerInquiry", JSON.stringify({
-          message: formData.message,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }));
-
-        localStorage.setItem("currentConsultationId", consultationId.toString());
+        localStorage.setItem("customerInquiry", formData.message);
+        localStorage.setItem("consultationId", consultationId.toString());
         localStorage.setItem("isMatched", "false");
 
-        // 도움됐다고 체크한 FAQ ID 전송
         const likedKbIds = Object.entries(allFeedbacks)
             .filter(([key, val]) => key !== "AI" && val === "like")
             .map(([key]) => Number(key))
@@ -110,7 +110,7 @@ const CustomerSummary: React.FC = () => {
         setShowModal(true);
       }
     } catch (error: unknown) {
-      const axiosError = error as { response?: { data?: { code?: string; message?: string }; status?: number } };
+      const axiosError = error as { response?: { data?: { code?: string }; status?: number } };
       if (axiosError?.response?.status === 409 && axiosError?.response?.data?.code === "CONSULT_DUPLICATE") {
         alert("이미 대기 중인 상담이 있습니다.\n상담사가 연결될 때까지 기다려 주세요.");
       } else {
@@ -120,8 +120,7 @@ const CustomerSummary: React.FC = () => {
       setShowModal(false);
     } finally {
       setIsSubmitting(false);
-      setShowModal(true);
-    }, 800);
+    }
   };
 
   const closeModal = () => {
