@@ -28,7 +28,8 @@ import {
     fetchWaitingConsultations,
     deleteWaitingConsultation,
     matchOldestConsultation,
-    assignConsultation
+    assignConsultation,
+    getConsultationContext
 } from "../../api/services/consultation";
 import * as styles from "./Style/Dashboard.css.ts";
 
@@ -51,6 +52,44 @@ export interface ConsultationResponse extends Omit<BaseResponse, 'created_at' | 
     channelCode?: string;
     endedAt?: string;
     status?: BaseResponse['status'] | string; 
+}
+
+interface ConsultationContext {
+    consultationId: number;
+    customer: {
+        customerId: number;
+        name: string;
+        grade: string;
+        gender: string;
+        age: number;
+        totalConsultCount: number;
+        lastConsultedAt: string | null;
+        phoneMask: string;
+        emailMask: string;
+    } | null;
+    recentConsultations: Array<{
+        consultationId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        summaryText: string;
+        endedAt: string;
+        priceSensitivity: string | null;
+        decisionStyle: string | null;
+        anxietyLevel: string | null;
+        sentimentLabel: string | null;
+    }>;
+    currentConsultation: {
+        consultationId: number;
+        customerId: number;
+        agentId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        issueTypeId: number;
+        priorityCode: string;
+    } | null;
+    initialMessage: string;
 }
 
 const NOTICES = [
@@ -85,6 +124,7 @@ const Dashboard: React.FC = () => {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
     
+    const [consultationContext, setConsultationContext] = useState<ConsultationContext | null>(null);
     const [isCooldown, setIsCooldown] = useState(false);
     const [skippedCustomerIds, setSkippedCustomerIds] = useState<Set<number | string>>(new Set());
 
@@ -186,6 +226,14 @@ const Dashboard: React.FC = () => {
             };
 
             setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+
+            try {
+                const ctx = await getConsultationContext(data.consultationId);
+                setConsultationContext(ctx as unknown as ConsultationContext);
+            } catch (e) {
+                console.warn("Context 로드 실패:", e);
+                setConsultationContext(null);
+            }
         } catch (error) {
             console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
@@ -263,6 +311,7 @@ const Dashboard: React.FC = () => {
                 );
 
                 setAssignedCustomer(null);
+                setConsultationContext(null);
                 navigate(`/consultation/${id}`);
             } catch (error) {
                 console.error("상담 배정 실패:", error);
@@ -284,6 +333,7 @@ const Dashboard: React.FC = () => {
         }
 
         setAssignedCustomer(null);
+        setConsultationContext(null);
         setIsCooldown(true);
         
         setTimeout(() => {
@@ -548,19 +598,24 @@ const Dashboard: React.FC = () => {
                                 <span className={styles.modalCustomerName}>
                                     {(assignedCustomer as unknown as ConsultationResponse).customerName || (assignedCustomer as unknown as ConsultationResponse).customer_name || (assignedCustomer as CustomerInfo).name || "고객"} 님
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
-                                    VIP Platinum
-                                </span>
+                                {consultationContext?.customer?.grade && (
+                                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
+                                        {consultationContext.customer.grade}
+                                    </span>
+                                )}
                             </div>
 
-                            {/* ✅ 이미지 기반 성향 태그 */}
                             <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                                {["결합할인", "신속해결", "친절선호"].map((tag) => (
-                                    <span key={tag} style={{ 
-                                        fontSize: '11px', 
-                                        padding: '3px 9px', 
-                                        borderRadius: '12px', 
-                                        backgroundColor: '#F3F4F6', 
+                                {[
+                                    consultationContext?.recentConsultations?.[0]?.priceSensitivity,
+                                    consultationContext?.recentConsultations?.[0]?.decisionStyle,
+                                    consultationContext?.recentConsultations?.[0]?.anxietyLevel,
+                                ].filter(Boolean).map((tag) => (
+                                    <span key={tag} style={{
+                                        fontSize: '11px',
+                                        padding: '3px 9px',
+                                        borderRadius: '12px',
+                                        backgroundColor: '#F3F4F6',
                                         color: '#4B5563',
                                         fontWeight: 600,
                                         border: '1px solid #E5E7EB'
@@ -572,22 +627,33 @@ const Dashboard: React.FC = () => {
 
                             <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '12px 0' }} />
 
-                            {/* ✅ 이미지 기반 이력 요약 */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                                     <span style={{ color: '#6B7280' }}>최근 상담일</span>
-                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>2024.03.12</span>
+                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>
+                                        {consultationContext?.customer?.lastConsultedAt
+                                            ? new Date(consultationContext.customer.lastConsultedAt).toLocaleDateString('ko-KR')
+                                            : '-'}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                    <span style={{ color: '#6B7280' }}>불만 합계</span>
-                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>0건</span>
+                                    <span style={{ color: '#6B7280' }}>총 상담 수</span>
+                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>
+                                        {consultationContext?.customer?.totalConsultCount ?? '-'}건
+                                    </span>
                                 </div>
+                                {consultationContext?.customer?.age && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                        <span style={{ color: '#6B7280' }}>나이</span>
+                                        <span style={{ fontWeight: 600, color: '#1A1A1A' }}>{consultationContext.customer.age}세</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px', backgroundColor: '#F9FAFB' }}>
                                 <p style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '4px', fontWeight: 700 }}>실시간 문의 내용</p>
                                 <p className={styles.aiGuideText} style={{ fontWeight: 600, color: '#1A1A1A' }}>
-                                    "{(assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
+                                    "{consultationContext?.initialMessage || (assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
                                 </p>
                             </div>
                         </div>
