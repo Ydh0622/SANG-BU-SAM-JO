@@ -3,7 +3,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, MessageSquare, ClipboardList, User, ArrowRight, X, Loader2, CheckCircle2 } from "lucide-react";
 import * as styles from "./Style/CustomerSummary.css.ts";
 
-/**  타입 정의 보강 */
+import { createConsultation, submitFaqFeedback } from "../../api/services/consultation";
+import type { CreateConsultationRequest, CreateConsultationResponse } from "../../api/services/consultation";
+
+type ProductLine = "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC";
+
 interface CustomerFormData {
   name: string;
   phone: string;
@@ -20,7 +24,7 @@ interface FaqItem {
 interface LocationState {
   formData: CustomerFormData;
   selectedFaqContent: FaqItem[];
-  consultationId: string; 
+  allFeedbacks: Record<string, "like" | "dislike" | null>;
 }
 
 const CustomerSummary: React.FC = () => {
@@ -35,7 +39,7 @@ const CustomerSummary: React.FC = () => {
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
-  const consultationId = state?.consultationId || localStorage.getItem("consultationId");
+  const allFeedbacks = state?.allFeedbacks || {};
 
   // 매칭 감시 로직 (기존 유지)
   useEffect(() => {
@@ -69,14 +73,47 @@ const CustomerSummary: React.FC = () => {
 
     setIsSubmitting(true);
 
-    localStorage.setItem("customerInquiry", formData.message);
+    try {
+      const payload: CreateConsultationRequest = {
+        customerName: formData.name,
+        phone: formData.phone,
+        channel: "CHAT",
+        productLineCode: selectedCategory.code,
+        issueTypeId: selectedCategory.id,
+        priority: "MID",
+        initialMessage: formData.message
+      };
 
-    // Chat 페이지에서 사용할 최종 ID 확정 저장
-    localStorage.setItem("consultationId", consultationId); 
-    localStorage.setItem("isMatched", "false"); 
+      const result: CreateConsultationResponse = await createConsultation(payload);
+      const consultationId = result?.data?.consultationId ?? 
+                           (result as unknown as { consultationId: number }).consultationId;
 
-    // 매칭 대기 모달 오픈
-    setTimeout(() => {
+      if (consultationId) {
+        localStorage.setItem("customerInquiry", JSON.stringify({
+          message: formData.message,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }));
+
+        localStorage.setItem("currentConsultationId", consultationId.toString());
+        localStorage.setItem("isMatched", "false");
+
+        // 도움됐다고 체크한 FAQ ID 전송
+        const likedKbIds = Object.entries(allFeedbacks)
+            .filter(([key, val]) => key !== "AI" && val === "like")
+            .map(([key]) => Number(key))
+            .filter(id => !isNaN(id) && id > 0);
+
+        if (likedKbIds.length > 0) {
+            submitFaqFeedback(consultationId, likedKbIds).catch(() => {});
+        }
+
+        setShowModal(true);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "상담 신청 실패";
+      alert(message);
+      setShowModal(false);
+    } finally {
       setIsSubmitting(false);
       setShowModal(true);
     }, 800);
