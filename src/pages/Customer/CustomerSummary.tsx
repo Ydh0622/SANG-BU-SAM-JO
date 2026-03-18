@@ -15,10 +15,11 @@ interface CustomerFormData {
   category: string;
 }
 
+// 💡 FaqItem 구조를 이전 페이지(question)와 일치시킴
 interface FaqItem {
-  id: number;
-  q: string;
-  a: string;
+  faq_id: string;
+  question: string;
+  answer: string;
 }
 
 interface LocationState {
@@ -43,11 +44,12 @@ const CustomerSummary: React.FC = () => {
   const [isMatched, setIsMatched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 💡 데이터 수신 로직
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
 
-  // [로직 통합] 매칭 감시: localStorage의 isMatched가 "true"가 될 때만 이동합니다.
+  // [로직 통합] 매칭 감시
   useEffect(() => {
     let checkTimer: number | undefined;
 
@@ -56,10 +58,9 @@ const CustomerSummary: React.FC = () => {
         const matchStatus = localStorage.getItem("isMatched");
         
         if (matchStatus === "true") {
-          setIsMatched(true); // 모달 UI를 '연결됨'으로 변경
+          setIsMatched(true);
           if (checkTimer) clearInterval(checkTimer);
           
-          // 1.5초 ~ 2초 정도 연결 성공 화면을 보여준 뒤 이동
           setTimeout(() => {
             navigate("/customer/chat");
           }, 1500); 
@@ -73,7 +74,6 @@ const CustomerSummary: React.FC = () => {
   const handleStartChat = async () => {
     if (isSubmitting) return;
 
-    // [로직 추가] 새로운 신청 시 이전 매칭 기록을 반드시 삭제하여 즉시 넘어가는 현상 방지
     localStorage.removeItem("isMatched");
     setIsMatched(false);
 
@@ -102,10 +102,7 @@ const CustomerSummary: React.FC = () => {
         }));
 
         localStorage.setItem("currentConsultationId", consultationId.toString());
-        
-        // 초기 대기 상태 설정
         localStorage.setItem("isMatched", "false"); 
-        
         setShowModal(true); 
       }
     } catch (error: unknown) {
@@ -134,15 +131,21 @@ const CustomerSummary: React.FC = () => {
           <div className={styles.contentBox}>{formData.message}</div>
         </div>
 
+        {/* 💡 추천 답변 출력 영역 (이미지 스타일 적용) */}
         <div className={styles.section}>
           <div className={styles.label}><ClipboardList size={16} /> 내가 확인한 답변</div>
-          {selectedFaqContent.length > 0 ? (
-            selectedFaqContent.map((faq) => (
-              <div key={faq.id} className={styles.selectedTag}>• {faq.q}</div>
-            ))
-          ) : (
-            <div className={styles.contentBox} style={{ color: "#9CA3AF" }}>선택된 답변 없음</div>
-          )}
+          <div style={{ backgroundColor: '#FFF1F8', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {selectedFaqContent.length > 0 ? (
+              selectedFaqContent.map((faq) => (
+                <div key={faq.faq_id} style={{ fontSize: '14px', color: '#374151', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                  <span style={{ color: '#E6007E', fontWeight: 'bold' }}>•</span>
+                  <span>{faq.question}</span>
+                </div>
+              ))
+            ) : (
+              <div style={{ color: "#9CA3AF", fontSize: '14px' }}>선택된 답변 없음</div>
+            )}
+          </div>
         </div>
 
         <div className={styles.section} style={{ marginBottom: "40px" }}>

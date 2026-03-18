@@ -198,37 +198,40 @@ const handleSelectFaq = (id: string, status: boolean) => {
         }
     }, [inputValue, customerId]);
 
-    const handleFinalComplete = async () => {
-        if (!customerId || !customerInfo) return;
+const handleFinalComplete = async () => {
+    if (!customerId || !customerInfo) return;
+    
+    try {
+        setShowExitModal(false);
+        setIsLoading(true);
+
+        // 1. 대화 내역 전체를 하나의 문자열로 합치기 (시간 - 보낸사람: 내용)
+        const fullChatLog = messages
+            .map(m => `[${m.time}] ${m.sender === 'customer' ? '고객' : '상담사'}: ${m.text}`)
+            .join('\n');
+
+        // 2. 서버로 보낼 데이터 구성
+        const payload = {
+            finalResultCode: finalResultCode,
+            customerName: customerInfo.customer_name,
+            consultationContent: fullChatLog 
+        };
+
+        // 3. API 전송
+        await endConsultation(customerId, payload);
         
-        try {
-            setShowExitModal(false);
-            setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const firstCustomerMsg = messages.find(m => m.sender === "customer")?.text || "문의 내용 없음";
-            const inquirySummary = firstCustomerMsg
-                .replace(/\n/g, ' ') 
-                .trim()
-                .substring(0, 50) + (firstCustomerMsg.length > 50 ? "..." : "");
+        // 로컬 스토리지 정리 및 이동
+        ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
+        navigate("/search", { replace: true });
 
-            const payload = {
-                finalResultCode: finalResultCode,
-                customerName: customerInfo.customer_name,
-                consultationContent: inquirySummary 
-            };
-
-            await endConsultation(customerId, payload);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
-            navigate("/search", { replace: true });
-
-        } catch (err) {
-            setIsLoading(false);
-            const error = err as AxiosError<{ message?: string }>;
-            alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
-        }
-    };
+    } catch (err) {
+        setIsLoading(false);
+        const error = err as AxiosError<{ message?: string }>;
+        alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
+    }
+};
 
     useEffect(() => {
         const handleCustomerChat = (e: StorageEvent) => {

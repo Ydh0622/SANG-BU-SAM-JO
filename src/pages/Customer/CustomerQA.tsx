@@ -68,25 +68,19 @@ const CustomerQA: React.FC = () => {
         }));
     };
 
-    // [이 부분이 핵심 수정 사항입니다]
     const handleNextStep = () => {
         if (!isAllSelected) return;
 
-        // 좋아요를 누른 항목의 'answer'를 한 줄 요약하여 selectedFaqContent로 만듦
         const selectedFaqContent = dynamicFaqList
             .filter((faq: FaqItem) => feedbacks[faq.faq_id] === "like")
             .map((faq: FaqItem) => {
-                // 1. 답변에서 첫 번째 문장만 추출 (마침표 기준)
                 const firstSentence = faq.answer.split('.')[0];
-                
-                // 2. 너무 길면 30자로 제한하고 말줄임표 처리
                 const summaryText = firstSentence.length > 100
                     ? `${firstSentence.slice(0, 30)}...` 
                     : firstSentence;
 
                 return {
                     ...faq,
-
                     question: summaryText 
                 };
             });
@@ -135,7 +129,9 @@ const CustomerQA: React.FC = () => {
                             margin: 0, 
                             textAlign: 'left', 
                             lineHeight: '1.6',
-                            whiteSpace: 'pre-wrap'
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all',
+                            width: '100%'
                         }}>
                             {aiAnswer}
                         </p>
@@ -192,16 +188,24 @@ const CustomerQA: React.FC = () => {
                                 className={styles.qaItem}
                                 style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}
                             >
-                                <div style={{ flex: 1 }}>
+                                {/* 💡 FAQ 답변 영역: flex 1과 width 0을 주어 버튼 공간을 제외한 모든 가로 너비를 채움 */}
+                                <div style={{ flex: 1, width: '0' }}>
                                     <div style={{ fontSize: '15px', fontWeight: '700', color: '#374151' }}>
                                         {faq.question}
                                     </div>
-                                    <div style={{ fontSize: '14px', color: '#4B5563', marginTop: '8px', lineHeight: '1.5' }}>
+                                    <div style={{ 
+                                        fontSize: '14px', 
+                                        color: '#4B5563', 
+                                        marginTop: '8px', 
+                                        lineHeight: '1.5',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all'
+                                    }}>
                                         {faq.answer}
                                     </div>
                                 </div>
                                 
-                                <div style={{ display: 'flex', gap: '6px' }}>
+                                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                     <button
                                         onClick={() => handleFeedback(faq.faq_id, "like")}
                                         style={{

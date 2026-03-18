@@ -125,7 +125,7 @@ const CustomerChat = () => {
     /** 6. 상담 종료 후 페이지 이동 */
     const handleCloseAndNavigate = () => {
         setShowTerminatedModal(false);
-        // 상담 관련 로컬 스토리지 데이터 정리 (선택 사항)
+
         localStorage.removeItem("customerInquiry");
         navigate('/customer/apply', { replace: true });
     };

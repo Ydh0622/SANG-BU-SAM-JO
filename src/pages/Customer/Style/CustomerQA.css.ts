@@ -11,134 +11,96 @@ export const container = style({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "10px", // 외부 여백 축소
+  padding: "10px", 
   fontFamily: "'Pretendard', sans-serif",
 });
 
 export const card = style({
   width: "100%",
-  maxWidth: "440px", // 가로폭 약간 축소
+  maxWidth: "440px", 
   backgroundColor: "#ffffff",
   borderRadius: "20px",
-  padding: "20px 16px", // 내부 여백 대폭 축소 (기존 32px -> 20px)
+  padding: "20px 16px", 
   boxShadow: "0 4px 15px rgba(0, 0, 0, 0.05)",
   animation: `${fadeIn} 0.4s ease-out`,
 });
 
-/* --- 상단 Step Bar (높이 축소) --- */
-export const stepContainer = style({
-  display: "flex",
-  justifyContent: "center",
-  gap: "8px",
-  marginBottom: "16px", // 마진 축소
-});
-
-export const stepBox = style({
-  width: "28px",
-  height: "28px",
-  borderRadius: "6px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "12px",
-  border: "1px solid #D1D5DB",
-  color: "#9CA3AF",
-});
-
-export const stepBoxActive = style({
-  backgroundColor: "#E6007E",
-  borderColor: "#E6007E",
-  color: "#ffffff",
-});
-
-/* --- 헤더 (콤팩트화) --- */
-export const header = style({
-  textAlign: "center",
-  marginBottom: "16px", // 마진 축소
-});
-
-export const title = style({
-  fontSize: "18px", // 폰트 크기 축소
-  fontWeight: "800",
-  color: "#111827",
-  marginBottom: "4px",
-});
-
-export const subtitle = style({
-  fontSize: "13px",
-  color: "#6B7280",
-});
-
-/* --- Q&A 리스트 (간격 최적화) --- */
+/* --- Q&A 리스트 아이템 컨테이너 --- */
 export const qaItem = style({
   display: "flex",
+  flexDirection: "row",   // 가로 배치 명시
   alignItems: "flex-start",
-  gap: "10px",
-  padding: "12px", // 패딩 축소
+  gap: "12px", 
+  padding: "16px", 
   borderRadius: "12px",
   border: "1px solid #E5E7EB",
   backgroundColor: "#ffffff",
-  marginBottom: "8px", // 아이템 간 간격 축소
-  cursor: "pointer",
+  marginBottom: "12px", 
+  transition: "all 0.2s",
+  width: "100%",          // 부모 너비 꽉 채우기
+  boxSizing: "border-box",
 });
 
-export const qaItemActive = style({
-  borderColor: "#E6007E",
-  backgroundColor: "#FFF1F8",
-});
-
-/* --- 버튼 영역 (높이 고정 및 정렬) --- */
-export const buttonGroup = style({
+export const qaTextContainer = style({
+  flex: 1,                
+  minWidth: 0,           
   display: "flex",
-  gap: "8px",
-  alignItems: "center",
-  marginTop: "16px", // 상단 마진 축소
-  width: "100%",
-});
-
-const baseButton = style({
-  height: "48px", // 전체 높이를 위해 56px에서 48px로 조정
-  borderRadius: "12px",
-  fontSize: "14px",
-  fontWeight: "700",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  flexDirection: "column",
   gap: "6px",
-  border: "none",
-  cursor: "pointer",
 });
 
-export const prevBtn = style([baseButton, {
-  flex: 1,
-  backgroundColor: "#ffffff",
-  border: "1px solid #E5E7EB",
-  color: "#6B7280",
-}]);
+export const qaTitle = style({
+  fontSize: "15px",
+  fontWeight: "700",
+  color: "#374151",
+  lineHeight: "1.4",
+});
 
-export const submitBtn = style([baseButton, {
-  flex: 2,
+export const qaText = style({
+  fontSize: "14px",
+  color: "#4B5563",
+  lineHeight: "1.6",
+  whiteSpace: "pre-wrap", // 파이썬 \n 적용
+  wordBreak: "keep-all",  // 한글의 경우 단어 단위 줄바꿈 (필요시 break-all로 변경)
+  overflowWrap: "anywhere", // 긴 영문/숫자 대비
+});
+
+/* --- 버튼 영역 (찌그러짐 방지 및 고정) --- */
+export const feedbackButtonGroup = style({
+  display: "flex",
+  gap: "6px",
+  flexShrink: 0,          // 중요: 버튼 박스가 텍스트에 밀려 좁아지지 않게 함
+  marginTop: "2px",       // 타이틀과 높이 맞춤용
+});
+
+/* --- 버튼 스타일 --- */
+export const submitBtn = style({
+  height: "56px",
+  borderRadius: "14px",
+  fontWeight: "bold",
+  border: "none",
+  color: "#fff",
+  transition: "all 0.2s",
+  width: "100%",
+  cursor: "pointer",
   backgroundColor: "#E6007E",
-  color: "#ffffff",
   ":disabled": {
     backgroundColor: "#D1D5DB",
     cursor: "not-allowed",
   },
-}]);
-
-/* --- 요약 박스 (높이 축소) --- */
-export const summaryBox = style({
-  backgroundColor: "#F9FAFB",
-  borderRadius: "12px",
-  padding: "12px 16px",
-  marginBottom: "16px",
 });
 
-export const summaryItem = style({
+export const prevBtn = style({
+  flex: 1,
+  height: "56px",
+  borderRadius: "14px",
+  border: "1px solid #E5E7EB",
+  background: "#fff",
+  color: "#6B7280",
+  fontWeight: "600",
+  cursor: "pointer",
   display: "flex",
-  justifyContent: "space-between",
-  padding: "6px 0", // 간격 축소
-  fontSize: "14px",
-  borderBottom: "1px solid #F3F4F6",
-  selectors: { "&:last-child": { borderBottom: "none" } },
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "4px",
 });
