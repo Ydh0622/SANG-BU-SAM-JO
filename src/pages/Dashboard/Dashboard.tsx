@@ -605,25 +605,34 @@ const Dashboard: React.FC = () => {
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                                {[
-                                    consultationContext?.recentConsultations?.[0]?.priceSensitivity,
-                                    consultationContext?.recentConsultations?.[0]?.decisionStyle,
-                                    consultationContext?.recentConsultations?.[0]?.anxietyLevel,
-                                ].filter(Boolean).map((tag) => (
-                                    <span key={tag} style={{
-                                        fontSize: '11px',
-                                        padding: '3px 9px',
-                                        borderRadius: '12px',
-                                        backgroundColor: '#F3F4F6',
-                                        color: '#4B5563',
-                                        fontWeight: 600,
-                                        border: '1px solid #E5E7EB'
-                                    }}>
-                                        #{tag}
-                                    </span>
-                                ))}
-                            </div>
+                            {(() => {
+                                const latestRecent = consultationContext?.recentConsultations
+                                    ?.slice()
+                                    .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())[0];
+                                const tags = [
+                                    latestRecent?.priceSensitivity,
+                                    latestRecent?.decisionStyle,
+                                    latestRecent?.anxietyLevel,
+                                    latestRecent?.sentimentLabel,
+                                ].filter(Boolean);
+                                return tags.length > 0 ? (
+                                    <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                                        {tags.map((tag) => (
+                                            <span key={tag} style={{
+                                                fontSize: '11px',
+                                                padding: '3px 9px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#F3F4F6',
+                                                color: '#4B5563',
+                                                fontWeight: 600,
+                                                border: '1px solid #E5E7EB'
+                                            }}>
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : null;
+                            })()}
 
                             <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '12px 0' }} />
 
