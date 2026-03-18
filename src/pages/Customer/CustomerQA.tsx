@@ -11,6 +11,12 @@ interface CustomerFormData {
   category: string;
 }
 
+
+interface LocationState {
+    formData: CustomerFormData;
+    consultationId: string;
+}
+
 type FeedbackStatus = "like" | "dislike" | null;
 
 const CustomerQA: React.FC = () => {
@@ -24,12 +30,16 @@ const CustomerQA: React.FC = () => {
     const [feedbacks, setFeedbacks] = useState<Record<string, FeedbackStatus>>({});
     const aiFeedback = feedbacks["AI"];
 
-    const state = location.state as { formData: CustomerFormData } | null;
+    // Apply에서 넘겨준 state를 안전하게 가져옵니다.
+    const state = location.state as LocationState | null;
     const formData = state?.formData || { 
         name: "고객", 
         message: "", 
         category: "기타 문의" 
     };
+    
+    //  상담 ID 보관 (이게 없으면 나중에 Chat에서 튕김)
+    const consultationId = state?.consultationId;
 
     const fetchAnalysis = useCallback(async () => {
         if (!formData.message) {
@@ -68,6 +78,7 @@ const CustomerQA: React.FC = () => {
         }));
     };
 
+    /**  다음 단계로 이동 시 consultationId를 포함합니다. */
     const handleNextStep = () => {
         if (!isAllSelected) return;
 
@@ -85,9 +96,11 @@ const CustomerQA: React.FC = () => {
                 };
             });
 
+        //  Summary 페이지로 consultationId를 배달합니다.
         navigate("/customer/summary", { 
             state: { 
                 formData, 
+                consultationId, 
                 selectedFaqContent, 
                 aiFeedback: feedbacks["AI"],
                 allFeedbacks: feedbacks 
@@ -188,7 +201,6 @@ const CustomerQA: React.FC = () => {
                                 className={styles.qaItem}
                                 style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}
                             >
-
                                 <div style={{ flex: 1, width: '0' }}>
                                     <div style={{ fontSize: '15px', fontWeight: '700', color: '#374151' }}>
                                         {faq.question}

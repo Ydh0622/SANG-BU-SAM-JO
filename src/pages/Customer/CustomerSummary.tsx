@@ -15,7 +15,6 @@ interface CustomerFormData {
   category: string;
 }
 
-// 💡 FaqItem 구조를 이전 페이지(question)와 일치시킴
 interface FaqItem {
   faq_id: string;
   question: string;
@@ -28,15 +27,6 @@ interface LocationState {
   allFeedbacks: Record<string, "like" | "dislike" | null>;
 }
 
-const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
-  "요금제/부가서비스": { id: 1, code: "MOBILE" },
-  "기기변경/신규가입": { id: 2, code: "MOBILE" },
-  "기술지원/장애문의": { id: 3, code: "MOBILE" },
-  "결합상품/인터넷": { id: 4, code: "INTERNET" },
-  "이벤트/멤버십": { id: 5, code: "MOBILE" },
-  "기타 문의": { id: 6, code: "ETC" }
-};
-
 const CustomerSummary: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,13 +35,13 @@ const CustomerSummary: React.FC = () => {
   const [isMatched, setIsMatched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 💡 데이터 수신 로직
+  //  1. QA 페이지에서 넘겨준 데이터와 ID 수신
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
   const allFeedbacks = state?.allFeedbacks || {};
 
-  // [로직 통합] 매칭 감시
+  // 매칭 감시 로직 (기존 유지)
   useEffect(() => {
     let checkTimer: number | undefined;
 
@@ -73,13 +63,14 @@ const CustomerSummary: React.FC = () => {
     return () => { if (checkTimer) clearInterval(checkTimer); };
   }, [showModal, isMatched, navigate]);
 
-  const handleStartChat = async () => {
-    if (isSubmitting) return;
+  /**  상담 시작 버튼 로직 */
+  const handleStartChat = () => {
+    if (!consultationId) {
+      alert("상담 정보가 유효하지 않습니다. 다시 신청해주세요.");
+      navigate("/customer/apply");
+      return;
+    }
 
-    localStorage.removeItem("isMatched");
-    setIsMatched(false);
-
-    const selectedCategory = CATEGORY_MAP[formData.category] || CATEGORY_MAP["기타 문의"];
     setIsSubmitting(true);
 
     try {
@@ -124,7 +115,8 @@ const CustomerSummary: React.FC = () => {
       setShowModal(false);
     } finally {
       setIsSubmitting(false);
-    }
+      setShowModal(true);
+    }, 800);
   };
 
   const closeModal = () => {
@@ -144,7 +136,6 @@ const CustomerSummary: React.FC = () => {
           <div className={styles.contentBox}>{formData.message}</div>
         </div>
 
-        {/* 💡 추천 답변 출력 영역 (이미지 스타일 적용) */}
         <div className={styles.section}>
           <div className={styles.label}><ClipboardList size={16} /> 내가 확인한 답변</div>
           <div style={{ backgroundColor: '#FFF1F8', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -178,6 +169,7 @@ const CustomerSummary: React.FC = () => {
         </div>
       </div>
 
+      {/* 매칭 모달 영역 */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
           <div style={{ backgroundColor: 'white', padding: '40px 30px', borderRadius: '24px', textAlign: 'center', width: '85%', maxWidth: '400px', position: 'relative' }}>
@@ -190,9 +182,7 @@ const CustomerSummary: React.FC = () => {
             {isMatched ? (
               <>
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative' }}>
-                    <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
-                  </div>
+                  <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
                 </div>
                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사가 연결되었습니다!</h3>
                 <p style={{ color: '#6B7280', marginTop: '8px' }}>잠시 후 채팅방으로 입장합니다...</p>
