@@ -8,7 +8,10 @@ const AI_SOFT_BLUE = "#F0F7FF";
 export const container = style({
     width: "100%",
     minHeight: "100vh",
-    backgroundColor: "#F8F9FA",
+    background: `
+        radial-gradient(ellipse at 0% 0%, rgba(230,0,126,0.04) 0%, transparent 40%),
+        #F8F9FC
+    `,
     display: "flex",
     flexDirection: "column",
 });
@@ -96,8 +99,12 @@ export const card = style({
     backgroundColor: "#FFF",
     padding: "24px",
     borderRadius: "24px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
-    border: "1px solid #F0F0F0",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02), 0 8px 24px rgba(0,0,0,0.05)",
+    border: "1px solid rgba(0,0,0,0.04)",
+    transition: "box-shadow 0.3s ease",
+    ":hover": {
+        boxShadow: "0 4px 8px rgba(0,0,0,0.04), 0 16px 40px rgba(230,0,126,0.07)",
+    },
 });
 
 export const cardTitle = style({

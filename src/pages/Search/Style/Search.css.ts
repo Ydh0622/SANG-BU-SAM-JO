@@ -13,7 +13,10 @@ const fadeIn = keyframes({
 
 export const container = style({
     padding: "40px",
-    backgroundColor: "#F8F9FA",
+    background: `
+        radial-gradient(ellipse at 0% 0%, rgba(230,0,126,0.04) 0%, transparent 40%),
+        #F8F9FC
+    `,
     minHeight: "100vh",
     animation: `${fadeIn} 0.4s ease-out`,
     "@media": {
@@ -46,9 +49,9 @@ export const filterSection = style({
     backgroundColor: "#FFF",
     padding: "32px",
     borderRadius: "24px",
-    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.04)",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.02), 0 12px 30px rgba(0,0,0,0.05)",
     marginBottom: "32px",
-    border: "1px solid rgba(0,0,0,0.05)",
+    border: "1px solid rgba(0,0,0,0.04)",
 });
 
 export const filterTitle = style({
@@ -249,7 +252,10 @@ export const tableRow = style({
     cursor: "pointer",
     borderBottom: "1px solid #F8F9FA",
     transition: "all 0.2s ease",
-    ":hover": { backgroundColor: UPLUS_SOFT_PINK },
+    ":hover": {
+        backgroundColor: UPLUS_SOFT_PINK,
+        boxShadow: "inset 3px 0 0 #E6007E",
+    },
 });
 
 /** ✅ 10번 기능: 상태 관리 차별화를 위한 배지 스타일 */

@@ -165,9 +165,11 @@ const Dashboard: React.FC = () => {
         const token = localStorage.getItem("token");
         if (!token) return;
 
+        const currentUserId = localStorage.getItem("userId");
+
         try {
             const [consultationsRes, , waitingRes] = await Promise.all([
-                fetchConsultations(),
+                fetchConsultations(currentUserId ?? undefined),
                 fetchWaitingCount(),
                 fetchWaitingConsultations()
             ]);
@@ -385,7 +387,7 @@ const Dashboard: React.FC = () => {
             <header className={styles.header}>
                 <div className={styles.headerContent}>
                     <div className={styles.logoArea} onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-                        <span className={styles.brandLogo}> LG U<span className={styles.magentaText}>+</span></span>
+                        <span className={styles.brandLogo}>LG U<span className={styles.magentaText}>+</span> 프리톡 서비스</span>
                     </div>
                     <div className={styles.headerRight}>
                         <div className={styles.dateTimeDesktop}>
@@ -435,10 +437,11 @@ const Dashboard: React.FC = () => {
 
                         <section className={styles.heroCard}>
                             <div className={styles.heroInfo}>
+                                <div className={styles.heroBadge}>LG U+ 프리톡</div>
                                 <h2 className={styles.heroTitle}>반갑습니다, {adminName}님! 👋</h2>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
-                                    {workStatus === "AVAILABLE" ? <Activity size={16} className={styles.magentaText} /> : <Clock size={16} color="#999" />}
-                                    <span style={{ fontSize: "14px", fontWeight: 600 }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
+                                    {workStatus === "AVAILABLE" ? <Activity size={16} color="#FF80BC" /> : <Clock size={16} color="rgba(255,255,255,0.5)" />}
+                                    <span style={{ fontSize: "14px", fontWeight: 600, color: workStatus === "AVAILABLE" ? "#FF80BC" : "rgba(255,255,255,0.6)" }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
                                 </div>
                             </div>
                             <button type="button" className={workStatus === "AVAILABLE" ? styles.workStopBtn : styles.workStartBtn} onClick={handleToggleStatus}>
@@ -465,27 +468,57 @@ const Dashboard: React.FC = () => {
                         <section className={styles.glassCard}>
                             <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
-                                <button 
+                                <button
                                     type="button"
-                                    onClick={() => navigate('/search')} 
-                                    style={{ 
-                                        background: 'none', 
-                                        border: 'none', 
-                                        color: '#E6007E',      
-                                        cursor: 'pointer', 
-                                        fontSize: '14px',      
-                                        fontWeight: 700,       
-                                        padding: '4px 0',
-                                        letterSpacing: '-0.3px'
-                                    }}
+                                    onClick={() => navigate('/search')}
+                                    style={{ background: 'none', border: 'none', color: '#E6007E', cursor: 'pointer', fontSize: '14px', fontWeight: 700, padding: '4px 0', letterSpacing: '-0.3px' }}
                                 >
                                     전체보기
                                 </button>
                             </div>
-                            <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
-                                <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
-                            </div>
+                            {activities.length === 0 ? (
+                                <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+                                    <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
+                                </div>
+                            ) : (
+                                <div className={styles.activityList}>
+                                    {activities.slice(0, 5).map((item, idx) => {
+                                        const id = (item as ConsultationResponse).consultationId || (item as ConsultationResponse).consultation_id;
+                                        const name = (item as ConsultationResponse).customerName || (item as ConsultationResponse).customer_name || "고객";
+                                        const category = (item as ConsultationResponse).productLineCode || (item as ConsultationResponse).category || "-";
+                                        const raw = item as ConsultationResponse & { firstMessage?: string };
+                                        const preview = raw.summaryText || raw.firstMessage || raw.content_preview || raw.initialMessage || "";
+                                        const status = String((item as ConsultationResponse).statusCode || (item as ConsultationResponse).status || "").toUpperCase();
+                                        return (
+                                            <button
+                                                key={`act-${id ?? idx}`}
+                                                type="button"
+                                                className={styles.activityItem}
+                                                onClick={() => id && navigate(`/history/${id}`)}
+                                            >
+                                                <div style={{ width: '36px', height: '36px', borderRadius: '12px', background: '#FFF0F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <User size={16} color="#E6007E" />
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0, marginLeft: '14px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                                        <span className={styles.customerName}>{name}</span>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#E6007E', background: '#FFF0F6', padding: '2px 8px', borderRadius: '100px' }}>{category}</span>
+                                                    </div>
+                                                    <p style={{ fontSize: '13px', color: '#888', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {preview ? preview.slice(0, 40) + (preview.length > 40 ? '…' : '') : '내용 없음'}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                                                    <span className={status === 'DONE' ? styles.statusBadge.DONE : status === 'IN_PROGRESS' ? styles.statusBadge.IN_PROGRESS : styles.statusBadge.CANCELED}>
+                                                        {status === 'DONE' ? '완료' : status === 'IN_PROGRESS' ? '진행중' : '취소'}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </section>
                     </div>
 

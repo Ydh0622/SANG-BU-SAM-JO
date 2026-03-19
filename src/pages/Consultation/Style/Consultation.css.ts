@@ -29,46 +29,57 @@ export const container = style({
 export const header = style({
     height: "64px",
     padding: "0 24px",
-    backgroundColor: "#FFF",
-    borderBottom: "1px solid #E5E7EB",
+    background: "linear-gradient(135deg, #0D1117 0%, #1A1A2E 100%)",
+    borderBottom: "none",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     zIndex: 10,
-    flexShrink: 0, // 헤더 높이 유지
+    flexShrink: 0,
+    boxShadow: "0 2px 16px rgba(0,0,0,0.18)",
 });
 
 export const headerLeft = style({ display: "flex", alignItems: "center", gap: "12px" });
-export const backBtn = style({ display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s", ":hover": { transform: "translateX(-3px)" } });
-export const statusDot = style({ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#22C55E", boxShadow: "0 0 0 4px rgba(34, 197, 94, 0.2)" });
-export const title = style({ fontSize: "16px", fontWeight: 700, color: UPLUS_BLACK });
-export const timer = style({ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: 600, color: "#6B7280", backgroundColor: "#F3F4F6", padding: "4px 10px", borderRadius: "20px" });
+export const backBtn = style({
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: "rgba(255,255,255,0.8)",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "10px",
+    padding: "6px",
+    transition: "all 0.2s",
+    ":hover": { transform: "translateX(-3px)", background: "rgba(255,255,255,0.15)" },
+});
+export const statusDot = style({ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#4ADE80", boxShadow: "0 0 0 4px rgba(74, 222, 128, 0.25)" });
+export const title = style({ fontSize: "16px", fontWeight: 700, color: "#FFF" });
+export const timer = style({ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.7)", backgroundColor: "rgba(255,255,255,0.08)", padding: "4px 12px", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.1)" });
 
 export const saveButton = style({
     padding: "8px 16px",
-    backgroundColor: "#F3F4F6",
-    borderRadius: "8px",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: "10px",
     fontSize: "14px",
     fontWeight: 600,
-    color: "#4B5563",
+    color: "rgba(255,255,255,0.85)",
     display: "flex",
     alignItems: "center",
     transition: "all 0.2s",
-    border: "1px solid #E5E7EB",
-    ":hover": { backgroundColor: "#E5E7EB", transform: "translateY(-1px)", color: UPLUS_BLACK },
+    border: "1px solid rgba(255,255,255,0.15)",
+    ":hover": { backgroundColor: "rgba(255,255,255,0.18)", transform: "translateY(-1px)", color: "#FFF" },
 });
 
 export const exitButton = style({
-    padding: "8px 16px",
-    backgroundColor: UPLUS_MAGENTA,
-    borderRadius: "8px",
+    padding: "8px 18px",
+    background: `linear-gradient(135deg, ${UPLUS_MAGENTA} 0%, #C5006C 100%)`,
+    borderRadius: "10px",
     fontSize: "14px",
-    fontWeight: 600,
+    fontWeight: 700,
     color: "#FFF",
     display: "flex",
     alignItems: "center",
     transition: "all 0.2s",
-    ":hover": { opacity: 0.9, transform: "translateY(-1px)" },
+    boxShadow: "0 4px 12px rgba(230,0,126,0.4)",
+    ":hover": { transform: "translateY(-1px)", boxShadow: "0 6px 16px rgba(230,0,126,0.5)" },
 });
 
 /** * ✅ 메인 레이아웃 반응형 수정
@@ -112,8 +123,8 @@ export const card = style({
     backgroundColor: "#FFF",
     padding: "24px",
     borderRadius: "20px",
-    border: "1px solid #E5E7EB",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.03)",
+    border: "1px solid #F0F0F5",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02), 0 6px 20px rgba(0,0,0,0.04)",
 });
 
 export const cardHeader = style({ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" });
@@ -202,7 +213,20 @@ globalStyle(`${waitNumber} strong`, { fontSize: "24px", fontWeight: 900, color: 
 globalStyle(`${waitNumber} span`, { fontSize: "12px", color: UPLUS_MAGENTA, fontWeight: 700 });
 
 export const faqWrapper = style({ display: "flex", flexDirection: "column", gap: "12px" });
-export const faqItem = style({ padding: "16px", borderRadius: "12px", backgroundColor: "#F9FAFB", border: "1px solid #E5E7EB", transition: "all 0.2s", ":hover": { backgroundColor: "#FFF" } });
+export const faqItem = style({
+    padding: "16px",
+    borderRadius: "14px",
+    backgroundColor: "#FAFAFE",
+    border: "1px solid #F0F0F5",
+    transition: "all 0.2s ease",
+    borderLeft: "3px solid transparent",
+    ":hover": {
+        backgroundColor: "#FFF",
+        borderLeftColor: UPLUS_MAGENTA,
+        boxShadow: "0 4px 16px rgba(230,0,126,0.06)",
+        transform: "translateX(2px)",
+    },
+});
 export const faqQuestion = style({ fontSize: "14.5px", fontWeight: 700, color: "#374151", marginBottom: "8px", lineHeight: "1.5" });
 
 export const modalOverlay = style({ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(4px)", animation: `${fadeIn} 0.2s ease` });

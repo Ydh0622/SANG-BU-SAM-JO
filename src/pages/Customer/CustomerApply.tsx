@@ -57,8 +57,8 @@ const CustomerApply: React.FC = () => {
         <div className={styles.container}>
             <div className={styles.card}>
                 <header className={styles.header}>
-                    <div className={styles.iconCircle}><MessageCircle size={32} color="#E6007E" /></div>
-                    <h1 className={styles.title}>LG U+ 실시간 채팅 상담</h1>
+                    <div className={styles.iconCircle}><MessageCircle size={32} color="#FFFFFF" /></div>
+                    <h1 className={styles.title}>U+프리톡 실시간 채팅 상담</h1>
                     <p className={styles.subtitle}>문의 내용을 선택하시면 상담사가 연결됩니다.</p>
                 </header>
 

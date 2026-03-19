@@ -107,9 +107,10 @@ export const createConsultation = async (data: CreateConsultationRequest): Promi
     return await apiStore.post('/v1/consultations', data);
 };
 
-/** [GET] 전체 상담 목록 조회 */
-export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
-    return await apiStore.get('/v1/consultations', getAuthHeader());
+/** [GET] 상담 목록 조회 (agentId로 필터링 가능) */
+export const fetchConsultations = async (agentId?: number | string): Promise<ConsultationResponse[]> => {
+    const params = agentId ? `?agentId=${agentId}` : '';
+    return await apiStore.get(`/v1/consultations${params}`, getAuthHeader());
 };
 
 /** [DELETE] 대기 상담 제거 */

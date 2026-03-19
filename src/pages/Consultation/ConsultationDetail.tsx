@@ -364,7 +364,7 @@ const ConsultationDetail: React.FC = () => {
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
                     <button type="button" onClick={() => navigate('/dashboard')} className={styles.backBtn}>
-                        <ArrowLeft size={24} color="#666" />
+                        <ArrowLeft size={20} />
                     </button>
                     <div className={styles.statusDot} />
                     <h1 className={styles.title}>실시간 상담: {customerCtx?.name ?? customerInfo?.customer_name}</h1>

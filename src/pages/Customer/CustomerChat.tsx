@@ -61,7 +61,7 @@ const CustomerChat: React.FC = () => {
                     {
                         id: 1000,
                         sender: 'agent',
-                        text: '안녕하세요! LG U+ 고객센터입니다. 무엇을 도와드릴까요?',
+                        text: '안녕하세요! U+ 프리톡입니다. 무엇을 도와드릴까요?',
                         time: now
                     },
                     { 
@@ -85,7 +85,7 @@ const CustomerChat: React.FC = () => {
                 if (localInquiry) {
                     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     setMessages([
-                        { id: 1000, sender: 'agent', text: '안녕하세요! LG U+ 고객센터입니다.', time: now },
+                        { id: 1000, sender: 'agent', text: '안녕하세요! U+프리톡입니다.', time: now },
                         { id: Date.now(), sender: 'me', text: localInquiry, time: now }
                     ]);
                 }

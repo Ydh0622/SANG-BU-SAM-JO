@@ -24,48 +24,68 @@ export const container = style({
   justifyContent: "center",
   alignItems: "center",
   width: "100%",
-  minHeight: "100vh", // ✅ 고정 height 대신 min-height 사용
-  padding: "clamp(20px, 5vh, 40px)", // 화면 높이에 비례한 여백
+  minHeight: "100vh",
+  padding: "clamp(20px, 5vh, 40px)",
   boxSizing: "border-box",
-  backgroundImage: `
-    radial-gradient(circle at 0% 0%, rgba(230, 0, 126, 0.08) 0%, transparent 35%),
-    radial-gradient(circle at 100% 100%, rgba(230, 0, 126, 0.08) 0%, transparent 35%)
+  background: `
+    radial-gradient(ellipse at 20% 20%, rgba(230, 0, 126, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(230, 0, 126, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, rgba(255, 79, 163, 0.08) 0%, transparent 40%),
+    #F8F9FC
   `,
 });
 
 /** 3. 로그인 카드: 가로폭과 높이를 자동으로 조절 */
 export const loginCard = style({
   width: "100%",
-  // ✅ 모니터 크기에 따라 최대 너비가 유동적으로 변함
-  maxWidth: "clamp(320px, 90vw, 420px)", 
-  backgroundColor: "rgba(255, 255, 255, 0.9)",
-  backdropFilter: "blur(12px)",
-  boxShadow: "0px 32px 64px rgba(0, 0, 0, 0.08)",
-  borderRadius: "clamp(24px, 4vw, 32px)",
+  maxWidth: "clamp(320px, 90vw, 440px)",
+  backgroundColor: "#FFFFFF",
+  backdropFilter: "blur(20px)",
+  boxShadow: `
+    0 4px 6px rgba(0, 0, 0, 0.04),
+    0 24px 60px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(230, 0, 126, 0.06)
+  `,
+  borderRadius: "clamp(24px, 4vw, 36px)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  // ✅ 내부 패딩을 화면 크기에 맞게 가변 처리
-  padding: "clamp(40px, 10vh, 60px) clamp(24px, 8vw, 44px)",
-  border: "1px solid rgba(255, 255, 255, 0.6)",
+  padding: "clamp(40px, 10vh, 64px) clamp(24px, 8vw, 48px)",
+  border: "1px solid rgba(255, 255, 255, 0.8)",
   animation: `${fadeInDown} 0.6s ease-out`,
   boxSizing: "border-box",
+  position: "relative",
+  overflow: "hidden",
+  "::before": {
+    content: "''",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "4px",
+    background: `linear-gradient(90deg, ${UPLUS_MAGENTA} 0%, #FF4FA3 50%, ${UPLUS_MAGENTA} 100%)`,
+  },
 });
 
 /** 4. 타이틀 및 텍스트: 글자 크기 가변화 */
 export const title = style({
   fontFamily: "'Pretendard', sans-serif",
-  fontWeight: 800,
-  // ✅ 폰트 크기가 화면 너비(vw)에 따라 미세하게 조절됨
-  fontSize: "clamp(22px, 5vw, 30px)",
-  letterSpacing: "-0.04em",
+  fontWeight: 900,
+  fontSize: "clamp(28px, 6vw, 38px)",
+  letterSpacing: "-0.05em",
   color: UPLUS_BLACK,
   marginBottom: "12px",
   textAlign: "center",
-  lineHeight: "1.2",
+  lineHeight: "1.15",
 });
 
-export const titleBrand = style({ color: UPLUS_MAGENTA, fontWeight: 900 });
+export const titleBrand = style({
+  background: `linear-gradient(135deg, ${UPLUS_MAGENTA} 0%, #FF4FA3 100%)`,
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  backgroundClip: "text",
+  fontWeight: 900,
+});
 export const titlePlus = style({ marginLeft: "1px", fontSize: "0.85em", verticalAlign: "top" });
 
 export const description = style({
