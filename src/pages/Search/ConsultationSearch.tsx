@@ -8,10 +8,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { searchConsultations } from "../../api/services/search";
-import type { ConsultationSearchHit } from "../../api/services/search";
+import type { ConsultationSearchHit, ConsultationSearchRequest } from "../../api/services/search";
 import * as styles from "./Style/Search.css.ts";
 
-/** 검색 결과 인터페이스*/
+/** UI 표시용 검색 결과 인터페이스 */
 interface SearchResult {
     id: string;
     date: string;
@@ -28,19 +28,19 @@ const ConsultationSearch: React.FC = () => {
     const navigate = useNavigate();
     const dateInputRef = useRef<HTMLInputElement>(null);
     
-    const [searchTerm, setSearchTerm] = useState("");
+    const [searchTerm, setSearchTerm] = useState<string>("");
     const [activeFilter, setActiveFilter] = useState<string>("ALL");
-    const [searchDate, setSearchDate] = useState("");
+    const [searchDate, setSearchDate] = useState<string>("");
     const [allResults, setAllResults] = useState<SearchResult[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [totalCount, setTotalCount] = useState(0);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [totalCount, setTotalCount] = useState<number>(0);
 
     // 페이지네이션 관련 상태
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState<number>(1);
     const itemsPerPage = 10;
     const pagesPerBlock = 5;
 
-    // CustomerQA 방식의 데이터 fetch 함수 정의
+    /** 데이터 Fetch 함수 */
     const fetchSearchData = useCallback(async (page: number, filter: string) => {
         try {
             setIsLoading(true);
@@ -48,7 +48,8 @@ const ConsultationSearch: React.FC = () => {
             const currentAgentId = storedId ? Number(storedId) : 0;
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
-            const req = {
+            // API 요청 객체 (ConsultationSearchRequest 타입 준수)
+            const req: ConsultationSearchRequest = {
                 keyword: searchTerm.trim() || undefined,
                 agent_id: filter === "MINE" ? currentAgentId : undefined,
                 date_from: searchDate ? `${searchDate}T00:00:00` : undefined,
@@ -60,24 +61,26 @@ const ConsultationSearch: React.FC = () => {
 
             const response = await searchConsultations(req);
             
-            // 데이터 추출 및 방어 로직
-            const hits: ConsultationSearchHit[] = response?.hits || [];
+            // 데이터 추출 및 타입 안정성 확보
+            const hits: ConsultationSearchHit[] = response.hits;
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
                 MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
                 TELEPHONE: "유선전화", ETC: "기타",
             };
 
-            const converted: SearchResult[] = hits.map((item) => {
-                const rawDate = item.ended_at || item.started_at || new Date().toISOString();
-                const d = new Date(rawDate);
-                const formattedDate = isNaN(d.getTime()) 
-                    ? "날짜 없음" 
-                    : `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+            const converted: SearchResult[] = hits.map((item: ConsultationSearchHit) => {
+                // 날짜 포맷팅: "2026-03-17T01:53:49" -> "2026.03.17"
+                const rawDate = item.started_at || item.ended_at;
+                const formattedDate = rawDate 
+                    ? rawDate.split('T')[0].replace(/-/g, '.') 
+                    : "날짜 없음";
 
+                // 내 상담 여부
                 const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
                 const resultCode = item.final_result_code || "";
                 
+                // 상태값 매핑
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
                     resultCode === "DONE" ? "COMPLETED" : "PENDING";
@@ -85,6 +88,7 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
+                    // null 데이터 방어: 이름이 없으면 ID 표시
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code || ""] || "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
@@ -96,7 +100,7 @@ const ConsultationSearch: React.FC = () => {
             });
 
             setAllResults(converted);
-            setTotalCount(response?.total || 0);
+            setTotalCount(response.total);
             setCurrentPage(page);
 
         } catch (error) {
@@ -108,10 +112,10 @@ const ConsultationSearch: React.FC = () => {
         }
     }, [searchTerm, searchDate, itemsPerPage]);
 
-    // 필터나 마운트 시 데이터 로드 (CustomerQA 구조)
+    // 필터나 조회 기간 변경 시 1페이지부터 다시 로드
     useEffect(() => {
         fetchSearchData(1, activeFilter);
-    }, [fetchSearchData, activeFilter, searchDate]);
+    }, [activeFilter, searchDate, fetchSearchData]);
 
     const totalPages = Math.ceil(totalCount / itemsPerPage);
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
@@ -132,7 +136,6 @@ const ConsultationSearch: React.FC = () => {
 
     const handleFilterClick = (filterValue: string) => {
         setActiveFilter(filterValue);
-        // useEffect가 activeFilter 변경을 감지하여 fetchSearchData(1, filterValue)를 자동 호출합니다.
     };
 
     return (
@@ -182,7 +185,7 @@ const ConsultationSearch: React.FC = () => {
                                 className={styles.input}
                                 placeholder="검색어 입력..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                                 style={{ color: "#1A1A1A", fontWeight: 600 }}
                             />
                         </div>
@@ -198,7 +201,7 @@ const ConsultationSearch: React.FC = () => {
                                 type="date" 
                                 className={styles.input} 
                                 value={searchDate}
-                                onChange={(e) => setSearchDate(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchDate(e.target.value)}
                                 style={{ color: "#1A1A1A", fontWeight: 800, fontFamily: "inherit", cursor: 'pointer' }} 
                             />
                         </div>
@@ -244,7 +247,7 @@ const ConsultationSearch: React.FC = () => {
                                 </thead>
                                 <tbody>
                                     {allResults.length > 0 ? (
-                                        allResults.map((res) => (
+                                        allResults.map((res: SearchResult) => (
                                             <tr key={res.id} className={styles.tableRow} onClick={() => navigate(`/history/${res.id}`)}>
                                                 <td style={{ color: "#888", fontSize: "13px" }}>#{res.id}</td>
                                                 <td><span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span></td>
@@ -302,7 +305,7 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronLeft size={18} />
                                     </button>
                                     <div style={{ display: "flex", gap: "4px", margin: "0 8px" }}>
-                                        {currentBlockPages.map((num) => (
+                                        {currentBlockPages.map((num: number) => (
                                             <button
                                                 key={num}
                                                 onClick={() => handlePageChange(num)}
