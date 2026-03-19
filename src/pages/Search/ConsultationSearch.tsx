@@ -70,6 +70,8 @@ const ConsultationSearch: React.FC = () => {
             };
 
             const response = await searchConsultations(req);
+            
+            // 1. 응답 데이터 안전하게 추출
             const hits: ConsultationSearchHit[] = response?.hits ?? [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -77,13 +79,16 @@ const ConsultationSearch: React.FC = () => {
                 TELEPHONE: "유선전화", ETC: "기타",
             };
 
+            // 2. 데이터 변환 (Null 체크 보강)
             const converted: SearchResult[] = hits.map((item) => {
                 const rawDate = item.ended_at || item.started_at || new Date().toISOString();
                 const d = new Date(rawDate);
-                const formattedDate = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+                const formattedDate = isNaN(d.getTime()) 
+                    ? "날짜 없음" 
+                    : `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-                // 서버에서 오는 ID와 로컬스토리지 ID의 타입을 숫자로 통일하여 비교
-                const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
+                // 타입 차이 방지를 위해 Number() 처리 및 null 체크
+                const isMine = item.agent_id != null && Number(item.agent_id) === currentAgentId;
                 const resultCode = item.final_result_code ?? "";
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
@@ -92,11 +97,11 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
-                    // customer_name이 null이면 customer_id를 활용해 표시
+                    // customer_name이 null이면 ID라도 표시
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code ?? ""] ?? "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
-                    // agent_name이 null이면 agent_id를 활용해 표시
+                    // agent_name이 null이면 ID라도 표시
                     agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
                     is_mine: isMine,
                     is_repeat: resultCode === "TRANSFERRED",
@@ -104,6 +109,7 @@ const ConsultationSearch: React.FC = () => {
                 };
             });
 
+            // 3. 상태 업데이트
             setAllResults(converted);
             setTotalCount(response?.total ?? 0);
             setCurrentPage(page);
@@ -118,10 +124,8 @@ const ConsultationSearch: React.FC = () => {
 
     useEffect(() => {
         loadSearchData(1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [loadSearchData]);
 
-    const currentItems = allResults;
     const totalPages = Math.ceil(totalCount / itemsPerPage);
 
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
@@ -250,8 +254,8 @@ const ConsultationSearch: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentItems.length > 0 ? (
-                                        currentItems.map((res) => (
+                                    {allResults.length > 0 ? (
+                                        allResults.map((res) => (
                                             <tr key={res.id} className={styles.tableRow} onClick={() => navigate(`/history/${res.id}`)}>
                                                 <td style={{ color: "#888", fontSize: "13px" }}>#{res.id}</td>
                                                 <td><span style={{ fontWeight: 800, fontSize: "15px", color: "#1A1A1A" }}>{res.customer}</span></td>
