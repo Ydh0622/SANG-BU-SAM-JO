@@ -48,7 +48,7 @@ const ConsultationSearch: React.FC = () => {
             const currentAgentId = storedId ? Number(storedId) : 0;
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
-            // [수정 핵심] 값이 있는 파라미터만 조건부로 할당 (FAQ 방식과 동일하게)
+            // 실제 값이 존재하는 파라미터만 할당
             const req: ConsultationSearchRequest = {
                 page: page,
                 size: itemsPerPage,
@@ -62,15 +62,12 @@ const ConsultationSearch: React.FC = () => {
                 req.date_to = `${searchDate}T23:59:59`;
             }
 
-            // 수정된 search.ts (params 방식)를 통해 데이터 호출
-            const response: ConsultationSearchResponse = await searchConsultations(req) || {
-                hits: [],
-                total: 0,
-                page: page,
-                size: itemsPerPage
-            };
+            // API 호출 (FAQ.ts 처럼 response 자체를 데이터로 사용)
+            const response: ConsultationSearchResponse = await searchConsultations(req);
             
-            const hits: ConsultationSearchHit[] = response.hits || [];
+            // 데이터 추출 시 null 방어
+            const hits = response?.hits || [];
+            const total = response?.total || 0;
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
                 MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
@@ -93,9 +90,11 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
+                    // customer_name이 null이므로 customer_id로 대체 표시
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code || ""] || "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
+                    // agent_name이 null이므로 id나 기본값으로 표시
                     agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
                     is_mine: isMine,
                     is_repeat: resultCode === "TRANSFERRED",
@@ -104,7 +103,7 @@ const ConsultationSearch: React.FC = () => {
             });
 
             setAllResults(converted);
-            setTotalCount(response.total || 0);
+            setTotalCount(total);
             setCurrentPage(page);
 
         } catch (error) {
@@ -116,7 +115,7 @@ const ConsultationSearch: React.FC = () => {
         }
     }, [searchTerm, searchDate, itemsPerPage]);
 
-    // 필터나 조회 기간 변경 시 1페이지부터 다시 로드
+    // 필터나 조회 기간 변경 시 자동 로드
     useEffect(() => {
         fetchSearchData(1, activeFilter);
     }, [activeFilter, searchDate, fetchSearchData]);
