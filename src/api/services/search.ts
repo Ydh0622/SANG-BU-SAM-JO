@@ -53,8 +53,9 @@ export interface ConsultationDetailResponse {
     }[];
 }
 
-
-
+/**
+ * 상담 상세 조회 API
+ */
 export const getConsultationDetail = async (consultationId: string | number): Promise<ConsultationDetailResponse | null> => {
     try {
         const response = await fastApiStore.get<ConsultationDetailResponse>(`/v1/consultations/${consultationId}`);
@@ -66,17 +67,25 @@ export const getConsultationDetail = async (consultationId: string | number): Pr
     }
 };
 
+/**
+ * 상담 내역 검색 API (FAQ 방식과 동일하게 params로 전달)
+ */
 export const searchConsultations = async (req: ConsultationSearchRequest): Promise<ConsultationSearchResponse> => {
     try {
-      
+        // FAQ.ts 방식 반영: POST 요청이지만 데이터는 params(쿼리 스트링)로 전달
         const response = await fastApiStore.post<ConsultationSearchResponse>(
             '/v1/search/consultations', 
-            req
+            {}, // Request Body는 비워둠
+            { 
+                params: req // 필터 조건들을 URL 파라미터로 전송
+            }
         );
         return response.data;
     } catch (error) {
         const err = error as AxiosError;
         console.error("ES 상담 검색 실패:", err.response?.status);
+        
+        // 에러 발생 시 UI가 깨지지 않도록 기본 구조 반환
         return { 
             hits: [], 
             total: 0, 
@@ -86,7 +95,7 @@ export const searchConsultations = async (req: ConsultationSearchRequest): Promi
     }
 };
 
-// 하위 호환용 인터페이스
+// 하위 호환용 인터페이스 (기존 코드 유지)
 export interface ApiConsultationItem {
     consultationId: number;
     customerName: string;
