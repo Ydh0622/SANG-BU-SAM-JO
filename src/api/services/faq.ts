@@ -12,11 +12,15 @@ export interface FaqAnalysisResponse {
   retrieved_faqs: FaqItem[];
 }
 
+/**
+ * FAQ 검색 API 호출 함수
+ * 405 Method Not Allowed 에러 해결을 위해 POST -> GET으로 변경
+ */
 export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisResponse> => {
   try {
-    // 422 에러 해결을 위한 구조: 
-    // POST 요청이지만 데이터를 Body가 아닌 URL 파라미터(params)로 보냅니다.
-    const response = await axios.post('/fastapi/v1/search/faq', null, {
+    // 백엔드 서버가 GET 방식을 허용하므로 axios.get을 사용합니다.
+    // 데이터는 params 객체에 담아 전달하면 자동으로 URL 뒤에 ?question_text=... 형태로 붙습니다.
+    const response = await axios.get('/fastapi/v1/search/faq', {
       params: {
         question_text: questionText
       }
