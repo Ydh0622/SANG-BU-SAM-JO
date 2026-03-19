@@ -82,7 +82,8 @@ const ConsultationSearch: React.FC = () => {
                 const d = new Date(rawDate);
                 const formattedDate = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-                const isMine = item.agent_id === currentAgentId;
+                // 서버에서 오는 ID와 로컬스토리지 ID의 타입을 숫자로 통일하여 비교
+                const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
                 const resultCode = item.final_result_code ?? "";
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
@@ -91,9 +92,11 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
+                    // customer_name이 null이면 customer_id를 활용해 표시
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code ?? ""] ?? "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
+                    // agent_name이 null이면 agent_id를 활용해 표시
                     agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
                     is_mine: isMine,
                     is_repeat: resultCode === "TRANSFERRED",
@@ -111,7 +114,7 @@ const ConsultationSearch: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [searchTerm, searchDate, activeFilter]);
+    }, [searchTerm, searchDate, activeFilter, itemsPerPage]);
 
     useEffect(() => {
         loadSearchData(1);
@@ -121,7 +124,6 @@ const ConsultationSearch: React.FC = () => {
     const currentItems = allResults;
     const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-    /**  현재 블록의 페이지 번호들 계산 (5개씩) */
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
     const startPage = (currentBlock - 1) * pagesPerBlock + 1;
     const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
@@ -290,11 +292,8 @@ const ConsultationSearch: React.FC = () => {
                                 </tbody>
                             </table>
 
-                            {/* 개선된 페이지네이션  */}
                             {totalPages > 1 && (
                                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4px", marginTop: "32px", paddingBottom: "40px" }}>
-                                    
-                                    {/* 첫 블록이 아닐 때만 노출하거나 비활성화 처리 (5페이지 앞) */}
                                     <button 
                                         disabled={currentPage <= pagesPerBlock}
                                         onClick={() => handlePageChange(currentPage - pagesPerBlock)}
@@ -303,7 +302,6 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronsLeft size={18} />
                                     </button>
 
-                                    {/* 이전 페이지 */}
                                     <button 
                                         disabled={currentPage === 1}
                                         onClick={() => handlePageChange(currentPage - 1)}
@@ -312,7 +310,6 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronLeft size={18} />
                                     </button>
                                     
-                                    {/* 숫자 페이지 (5개씩) */}
                                     <div style={{ display: "flex", gap: "4px", margin: "0 8px" }}>
                                         {currentBlockPages.map((num) => (
                                             <button
@@ -330,7 +327,6 @@ const ConsultationSearch: React.FC = () => {
                                         ))}
                                     </div>
 
-                                    {/* 다음 페이지 */}
                                     <button 
                                         disabled={currentPage === totalPages}
                                         onClick={() => handlePageChange(currentPage + 1)}
@@ -339,7 +335,6 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronRight size={18} />
                                     </button>
 
-                                    {/* 다음 블록 (5페이지 뒤) */}
                                     <button 
                                         disabled={Math.ceil(currentPage / pagesPerBlock) === Math.ceil(totalPages / pagesPerBlock)}
                                         onClick={() => handlePageChange(currentPage + pagesPerBlock)}
@@ -357,7 +352,6 @@ const ConsultationSearch: React.FC = () => {
     );
 };
 
-/** 페이지네이션 화살표 공통 스타일 */
 const paginationArrowStyle = (isDisabled: boolean): React.CSSProperties => ({
     display: "flex",
     alignItems: "center",
