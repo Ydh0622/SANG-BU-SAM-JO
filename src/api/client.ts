@@ -137,7 +137,7 @@ const setInterceptors = (instance: AxiosInstance) => {
             );
           }
 
-          const res = await axios.post('/api/v1/auth/refresh', { refreshToken }, { withCredentials: true });
+         const res = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, { refreshToken }, { withCredentials: true });
           const newAccessToken = res.data?.data?.accessToken || res.data?.accessToken;
           const newRefreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
 
