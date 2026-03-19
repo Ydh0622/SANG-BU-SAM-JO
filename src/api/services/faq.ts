@@ -1,6 +1,6 @@
 import { fastApiStore } from "../client"; 
 
-/** 1. 서버에서 실제로 내려주는 데이터의 구조를 정의합니다 (Raw Data) */
+/** 1. 서버에서 내려주는 원본 데이터 구조 */
 interface RawFaqItem {
   faq_id: string;
   question: string;
@@ -12,7 +12,7 @@ interface RawFaqResponse {
   retrieved_faqs: RawFaqItem[];
 }
 
-/** 2. 우리 프론트엔드 컴포넌트(CustomerQA)가 사용하는 데이터 구조입니다 */
+/** 2. 프론트엔드에서 사용하는 데이터 구조 */
 export interface FaqItem {
   kbId: string;           
   productLineCode: string | null;
@@ -31,26 +31,29 @@ export interface FaqAnalysisResponse {
  */
 export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisResponse> => {
   try {
-    // Axios의 제네릭을 활용하여 any 없이 타입을 지정합니다.
     const response = await fastApiStore.post<RawFaqResponse>('/v1/search/faq', {}, {
       params: {
         question_text: questionText
       }
     });
 
-    const data = response.data;
+    // [중요] response.data가 있으면 쓰고, 없으면 response 자체를 데이터로 간주합니다.
+    // fastApiStore 설정에 따라 response가 곧 data일 때가 있습니다.
+    const data = response.data || (response as unknown as RawFaqResponse);
 
-    // [핵심] 서버 데이터(RawFaqItem)를 우리 타입(FaqItem)으로 변환합니다.
-    const mappedFaqList: FaqItem[] = (data.retrieved_faqs ?? []).map((item) => ({
-      kbId: item.faq_id,          // faq_id를 kbId로 매칭
-      request: item.question,     // question을 request로 매칭
+    // [방어 로직] data가 비어있거나 retrieved_faqs가 없을 때를 대비합니다.
+    const retrievedFaqs = data?.retrieved_faqs ?? [];
+
+    const mappedFaqList: FaqItem[] = retrievedFaqs.map((item) => ({
+      kbId: item.faq_id,
+      request: item.question,
       answer: item.answer,
       productLineCode: null,      
       customerLiked: false
     }));
 
     return {
-      answer: data.answer || "분석 데이터를 불러오지 못했습니다.",
+      answer: data?.answer || "분석 데이터를 불러오지 못했습니다.",
       faqList: mappedFaqList
     };
 
