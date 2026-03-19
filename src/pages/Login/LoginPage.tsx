@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import type { CredentialResponse } from "@react-oauth/google";
 import { authApi } from "../../api/services/auth";
-// import { MessageSquare, ArrowRight } from "lucide-react"; 
+import { MessageSquare, ArrowRight } from "lucide-react"; 
 import axios from "axios";
 
 import * as styles from "./Style/Login.css.ts";
@@ -128,7 +128,7 @@ const LoginPage: React.FC = () => {
           )}
         </div>
 
-        {/* <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #F1F3F5", width: "100%" }}>
+        <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #F1F3F5", width: "100%" }}>
           <p style={{ fontSize: '12px', color: '#999', marginBottom: '12px', textAlign: 'center' }}>
             상담 프로세스 확인을 위한 시연 모드
           </p>
@@ -153,7 +153,7 @@ const LoginPage: React.FC = () => {
           >
             <MessageSquare size={16} /> 고객 상담 신청하기 (시연용) <ArrowRight size={14} />
           </button>
-        </div> */}
+        </div>
       </main>
     </div>
   );

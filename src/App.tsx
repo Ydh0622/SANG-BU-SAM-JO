@@ -7,7 +7,7 @@ import ConsultationHistory from "./pages/History/ConsultationHistory";
 import NoticeList from "./pages/Notice/NoticeList"; 
 import CustomerApply from "./pages/Customer/CustomerApply"; 
 import CustomerQA from "./pages/Customer/CustomerQA"; 
-import CustomerSummary from "./pages/Customer/CustomerSummary"; // 추가: 요약 및 매칭 대기 페이지
+import CustomerSummary from "./pages/Customer/CustomerSummary"; 
 import CustomerChat from "./pages/Customer/CustomerChat"; 
 import MyPage from "./pages/MyPage/MyPage";
 import NotificationPage from "./pages/Notification/Notification"; 
