@@ -1,21 +1,23 @@
 import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+export default defineConfig(() => {
+  // const env = loadEnv(mode, process.cwd(), "");
 
-  const apiTarget = env.VITE_API_BASE_URL || "http://localhost:8081";
-  const adminTarget = env.VITE_API_BASE_URL || "http://localhost:8082";
-  const fastApiTarget = env.VITE_API_BASE_URL || "http://localhost:8000";
+  // const apiTarget = env.VITE_API_BASE_URL || "http://localhost:8081";
+  // const adminTarget = env.VITE_API_BASE_URL || "http://localhost:8082";
+  // const fastApiTarget = env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  console.log(
-    "[VITE ENV]",
-    "API:", apiTarget,
-    "ADMIN:", adminTarget,
-    "FASTAPI:", fastApiTarget,
-  );
+  const apiTarget = "http://k8s-consulta-consulta-d6806632dd-2103517095.ap-northeast-2.elb.amazonaws.com";
+
+  // console.log(
+  //   "[VITE ENV]",
+  //   "API:", apiTarget,
+  //   "ADMIN:", adminTarget,
+  //   "FASTAPI:", fastApiTarget,
+  // );
 
   return {
     resolve: {
@@ -30,7 +32,7 @@ export default defineConfig(({ mode }) => {
       // 백엔드 서버들로 요청을 배달해주는 프록시 설정
       proxy: {
         "/admin": {
-          target: adminTarget,
+          target: apiTarget,
           changeOrigin: true,
           secure: false,
         },
@@ -40,7 +42,7 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         "/fastapi": {
-          target: fastApiTarget,
+          target: apiTarget,
           changeOrigin: true,
           secure: false,
         },
