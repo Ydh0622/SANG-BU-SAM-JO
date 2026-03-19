@@ -37,8 +37,7 @@ export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisRe
       }
     });
 
-    // [중요] response.data가 있으면 쓰고, 없으면 response 자체를 데이터로 간주합니다.
-    // fastApiStore 설정에 따라 response가 곧 data일 때가 있습니다.
+   
     const data = response.data || (response as unknown as RawFaqResponse);
 
     // [방어 로직] data가 비어있거나 retrieved_faqs가 없을 때를 대비합니다.
