@@ -70,7 +70,7 @@ const ConsultationSearch: React.FC = () => {
             };
 
             const response = await searchConsultations(req);
-            const hits: ConsultationSearchHit[] = response.hits ?? [];
+            const hits: ConsultationSearchHit[] = response?.hits ?? [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
                 MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
@@ -102,7 +102,7 @@ const ConsultationSearch: React.FC = () => {
             });
 
             setAllResults(converted);
-            setTotalCount(response.total);
+            setTotalCount(response?.total ?? 0);
             setCurrentPage(page);
         } catch (error) {
             console.error("상담 내역 로드 실패:", error);
