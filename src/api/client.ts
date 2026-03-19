@@ -31,22 +31,65 @@ export const fastApiStore = axios.create({
 let isRefreshing = false;
 let refreshSubscribers: ((token: string) => void)[] = [];
 
+// 로깅을 디버그 플래그와 무관하게 항상 켭니다.
+const shouldLogApi = true;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    Object.prototype.toString.call(value) === "[object Object]"
+  );
+};
+
+const redactPayload = (payload: unknown) => {
+  if (!isPlainObject(payload)) return payload;
+
+  // 토큰/idToken 등 민감값은 마스킹해서 출력
+  const redacted = { ...payload } as Record<string, unknown>;
+  ["idToken", "refreshToken", "token", "accessToken", "Authorization", "authorization"].forEach(
+    (key) => {
+      if (key in redacted) redacted[key] = "[redacted]";
+    }
+  );
+  return redacted;
+};
+
 /**
  * 인터셉터 설정 함수
  */
 const setInterceptors = (instance: AxiosInstance) => {
+  type AxiosRequestConfigWithMeta = InternalAxiosRequestConfig & { __requestStartAt?: number };
+
   // 1. 요청 인터셉터: 모든 요청에 Bearer 토큰 자동 부착
   instance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
       const token = localStorage.getItem('token');
 
-      if (config.url?.includes('/auth/google')) {
-        return config;
-      }
+      const requestUrl = `${instance.defaults.baseURL ?? ""}${config.url ?? ""}`;
+      const isGoogleAuth = Boolean(config.url?.includes("/auth/google"));
 
-      if (token && config.headers) {
+      (config as AxiosRequestConfigWithMeta).__requestStartAt = Date.now();
+
+      if (!isGoogleAuth && token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+
+      if (shouldLogApi) {
+        console.log(
+          "[API REQUEST]",
+          requestUrl,
+          "method=",
+          config.method,
+          "hasToken=",
+          !isGoogleAuth && Boolean(token),
+          "params=",
+          config.params ?? "",
+          "data=",
+          redactPayload(config.data)
+        );
+      }
+
       return config;
     },
     (error) => Promise.reject(error)
@@ -55,6 +98,12 @@ const setInterceptors = (instance: AxiosInstance) => {
   // 2. 응답 인터셉터: 데이터 추출 및 공통 에러(401) 처리
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
+      if (shouldLogApi) {
+        const startAt = (response.config as AxiosRequestConfigWithMeta).__requestStartAt;
+        const durationMs = startAt ? Date.now() - startAt : undefined;
+        const requestUrl = `${instance.defaults.baseURL ?? ""}${response.config.url ?? ""}`;
+        console.log("[API RESPONSE]", requestUrl, "status=", response.status, durationMs ? `(${durationMs}ms)` : "");
+      }
       return response.data?.data !== undefined ? response.data.data : response.data;
     },
     async (error) => {
@@ -79,6 +128,15 @@ const setInterceptors = (instance: AxiosInstance) => {
           const refreshToken = localStorage.getItem('refreshToken');
           if (!refreshToken) throw new Error("Refresh token이 없습니다.");
 
+          if (shouldLogApi) {
+            console.log(
+              "[API REFRESH]",
+              "/api/v1/auth/refresh",
+              "body=",
+              redactPayload({ refreshToken })
+            );
+          }
+
           const res = await axios.post('/api/v1/auth/refresh', { refreshToken }, { withCredentials: true });
           const newAccessToken = res.data?.data?.accessToken || res.data?.accessToken;
           const newRefreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
@@ -92,6 +150,10 @@ const setInterceptors = (instance: AxiosInstance) => {
             refreshSubscribers = [];
 
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            if (shouldLogApi) {
+              const requestUrl = `${instance.defaults.baseURL ?? ""}${originalRequest.url ?? ""}`;
+              console.log("[API RETRY]", requestUrl);
+            }
             return instance(originalRequest);
           }
         } catch (refreshError) {
