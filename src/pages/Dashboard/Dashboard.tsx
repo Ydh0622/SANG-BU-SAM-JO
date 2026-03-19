@@ -28,7 +28,8 @@ import {
     fetchWaitingConsultations,
     deleteWaitingConsultation,
     matchOldestConsultation,
-    assignConsultation
+    assignConsultation,
+    getConsultationContext
 } from "../../api/services/consultation";
 import * as styles from "./Style/Dashboard.css.ts";
 
@@ -51,6 +52,44 @@ export interface ConsultationResponse extends Omit<BaseResponse, 'created_at' | 
     channelCode?: string;
     endedAt?: string;
     status?: BaseResponse['status'] | string; 
+}
+
+interface ConsultationContext {
+    consultationId: number;
+    customer: {
+        customerId: number;
+        name: string;
+        grade: string;
+        gender: string;
+        age: number;
+        totalConsultCount: number;
+        lastConsultedAt: string | null;
+        phoneMask: string;
+        emailMask: string;
+    } | null;
+    recentConsultations: Array<{
+        consultationId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        summaryText: string;
+        endedAt: string;
+        priceSensitivity: string | null;
+        decisionStyle: string | null;
+        anxietyLevel: string | null;
+        sentimentLabel: string | null;
+    }>;
+    currentConsultation: {
+        consultationId: number;
+        customerId: number;
+        agentId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        issueTypeId: number;
+        priorityCode: string;
+    } | null;
+    initialMessage: string;
 }
 
 const NOTICES = [
@@ -85,6 +124,7 @@ const Dashboard: React.FC = () => {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
     
+    const [consultationContext, setConsultationContext] = useState<ConsultationContext | null>(null);
     const [isCooldown, setIsCooldown] = useState(false);
     const [skippedCustomerIds, setSkippedCustomerIds] = useState<Set<number | string>>(new Set());
 
@@ -125,9 +165,11 @@ const Dashboard: React.FC = () => {
         const token = localStorage.getItem("token");
         if (!token) return;
 
+        const currentUserId = localStorage.getItem("userId");
+
         try {
             const [consultationsRes, , waitingRes] = await Promise.all([
-                fetchConsultations(),
+                fetchConsultations(currentUserId ?? undefined),
                 fetchWaitingCount(),
                 fetchWaitingConsultations()
             ]);
@@ -186,6 +228,14 @@ const Dashboard: React.FC = () => {
             };
 
             setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+
+            try {
+                const ctx = await getConsultationContext(data.consultationId);
+                setConsultationContext(ctx as unknown as ConsultationContext);
+            } catch (e) {
+                console.warn("Context 로드 실패:", e);
+                setConsultationContext(null);
+            }
         } catch (error) {
             console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
@@ -263,6 +313,7 @@ const Dashboard: React.FC = () => {
                 );
 
                 setAssignedCustomer(null);
+                setConsultationContext(null);
                 navigate(`/consultation/${id}`);
             } catch (error) {
                 console.error("상담 배정 실패:", error);
@@ -284,6 +335,7 @@ const Dashboard: React.FC = () => {
         }
 
         setAssignedCustomer(null);
+        setConsultationContext(null);
         setIsCooldown(true);
         
         setTimeout(() => {
@@ -320,12 +372,22 @@ const Dashboard: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
+    useEffect(() => {
+        if (workStatus !== "AVAILABLE" || assignedCustomer) return;
+
+        const interval = setInterval(() => {
+            assignNextCustomer();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [workStatus, assignedCustomer, assignNextCustomer]);
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
                 <div className={styles.headerContent}>
                     <div className={styles.logoArea} onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-                        <span className={styles.brandLogo}> LG U<span className={styles.magentaText}>+</span></span>
+                        <span className={styles.brandLogo}>LG U<span className={styles.magentaText}>+</span> 프리톡 서비스</span>
                     </div>
                     <div className={styles.headerRight}>
                         <div className={styles.dateTimeDesktop}>
@@ -365,17 +427,21 @@ const Dashboard: React.FC = () => {
                 <div className={styles.dashboardGrid}>
                     <div className={styles.mainContentLeft}>
                         <div className={styles.alertBanner}>
-                            <div className={styles.alertLevelBadge.CRITICAL}><AlertTriangle size={14} /> CRITICAL</div>
+                            <div className={styles.alertLevelBadge.CRITICAL}>
+                                <AlertTriangle size={14} />
+                                <span className={styles.alertLevelText}>CRITICAL</span>
+                            </div>
                             <p className={styles.alertText}>현재 서울 지역 IPTV 접속 장애 문의가 급증하고 있습니다.</p>
                             <button type="button" className={styles.alertLinkBtn} onClick={() => setShowGuide(true)}>가이드 보기</button>
                         </div>
 
                         <section className={styles.heroCard}>
                             <div className={styles.heroInfo}>
+                                <div className={styles.heroBadge}>LG U+ 프리톡</div>
                                 <h2 className={styles.heroTitle}>반갑습니다, {adminName}님! 👋</h2>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
-                                    {workStatus === "AVAILABLE" ? <Activity size={16} className={styles.magentaText} /> : <Clock size={16} color="#999" />}
-                                    <span style={{ fontSize: "14px", fontWeight: 600 }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
+                                    {workStatus === "AVAILABLE" ? <Activity size={16} color="#FF80BC" /> : <Clock size={16} color="rgba(255,255,255,0.5)" />}
+                                    <span style={{ fontSize: "14px", fontWeight: 600, color: workStatus === "AVAILABLE" ? "#FF80BC" : "rgba(255,255,255,0.6)" }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
                                 </div>
                             </div>
                             <button type="button" className={workStatus === "AVAILABLE" ? styles.workStopBtn : styles.workStartBtn} onClick={handleToggleStatus}>
@@ -402,27 +468,57 @@ const Dashboard: React.FC = () => {
                         <section className={styles.glassCard}>
                             <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
-                                <button 
+                                <button
                                     type="button"
-                                    onClick={() => navigate('/search')} 
-                                    style={{ 
-                                        background: 'none', 
-                                        border: 'none', 
-                                        color: '#E6007E',      
-                                        cursor: 'pointer', 
-                                        fontSize: '14px',      
-                                        fontWeight: 700,       
-                                        padding: '4px 0',
-                                        letterSpacing: '-0.3px'
-                                    }}
+                                    onClick={() => navigate('/search')}
+                                    style={{ background: 'none', border: 'none', color: '#E6007E', cursor: 'pointer', fontSize: '14px', fontWeight: 700, padding: '4px 0', letterSpacing: '-0.3px' }}
                                 >
                                     전체보기
                                 </button>
                             </div>
-                            <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
-                                <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
-                            </div>
+                            {activities.length === 0 ? (
+                                <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+                                    <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
+                                </div>
+                            ) : (
+                                <div className={styles.activityList}>
+                                    {activities.slice(0, 5).map((item, idx) => {
+                                        const id = (item as ConsultationResponse).consultationId || (item as ConsultationResponse).consultation_id;
+                                        const name = (item as ConsultationResponse).customerName || (item as ConsultationResponse).customer_name || "고객";
+                                        const category = (item as ConsultationResponse).productLineCode || (item as ConsultationResponse).category || "-";
+                                        const raw = item as ConsultationResponse & { firstMessage?: string };
+                                        const preview = raw.summaryText || raw.firstMessage || raw.content_preview || raw.initialMessage || "";
+                                        const status = String((item as ConsultationResponse).statusCode || (item as ConsultationResponse).status || "").toUpperCase();
+                                        return (
+                                            <button
+                                                key={`act-${id ?? idx}`}
+                                                type="button"
+                                                className={styles.activityItem}
+                                                onClick={() => id && navigate(`/history/${id}`)}
+                                            >
+                                                <div style={{ width: '36px', height: '36px', borderRadius: '12px', background: '#FFF0F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <User size={16} color="#E6007E" />
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0, marginLeft: '14px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                                        <span className={styles.customerName}>{name}</span>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#E6007E', background: '#FFF0F6', padding: '2px 8px', borderRadius: '100px' }}>{category}</span>
+                                                    </div>
+                                                    <p style={{ fontSize: '13px', color: '#888', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {preview ? preview.slice(0, 40) + (preview.length > 40 ? '…' : '') : '내용 없음'}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                                                    <span className={status === 'DONE' ? styles.statusBadge.DONE : status === 'IN_PROGRESS' ? styles.statusBadge.IN_PROGRESS : styles.statusBadge.CANCELED}>
+                                                        {status === 'DONE' ? '완료' : status === 'IN_PROGRESS' ? '진행중' : '취소'}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </section>
                     </div>
 
@@ -535,46 +631,71 @@ const Dashboard: React.FC = () => {
                                 <span className={styles.modalCustomerName}>
                                     {(assignedCustomer as unknown as ConsultationResponse).customerName || (assignedCustomer as unknown as ConsultationResponse).customer_name || (assignedCustomer as CustomerInfo).name || "고객"} 님
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
-                                    VIP Platinum
-                                </span>
+                                {consultationContext?.customer?.grade && (
+                                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
+                                        {consultationContext.customer.grade}
+                                    </span>
+                                )}
                             </div>
 
-                            {/* ✅ 이미지 기반 성향 태그 */}
-                            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                                {["결합할인", "신속해결", "친절선호"].map((tag) => (
-                                    <span key={tag} style={{ 
-                                        fontSize: '11px', 
-                                        padding: '3px 9px', 
-                                        borderRadius: '12px', 
-                                        backgroundColor: '#F3F4F6', 
-                                        color: '#4B5563',
-                                        fontWeight: 600,
-                                        border: '1px solid #E5E7EB'
-                                    }}>
-                                        #{tag}
-                                    </span>
-                                ))}
-                            </div>
+                            {(() => {
+                                const latestRecent = consultationContext?.recentConsultations
+                                    ?.slice()
+                                    .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())[0];
+                                const tags = [
+                                    latestRecent?.priceSensitivity,
+                                    latestRecent?.decisionStyle,
+                                    latestRecent?.anxietyLevel,
+                                    latestRecent?.sentimentLabel,
+                                ].filter(Boolean);
+                                return tags.length > 0 ? (
+                                    <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                                        {tags.map((tag) => (
+                                            <span key={tag} style={{
+                                                fontSize: '11px',
+                                                padding: '3px 9px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#F3F4F6',
+                                                color: '#4B5563',
+                                                fontWeight: 600,
+                                                border: '1px solid #E5E7EB'
+                                            }}>
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : null;
+                            })()}
 
                             <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '12px 0' }} />
 
-                            {/* ✅ 이미지 기반 이력 요약 */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                                     <span style={{ color: '#6B7280' }}>최근 상담일</span>
-                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>2024.03.12</span>
+                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>
+                                        {consultationContext?.customer?.lastConsultedAt
+                                            ? new Date(consultationContext.customer.lastConsultedAt).toLocaleDateString('ko-KR')
+                                            : '-'}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                    <span style={{ color: '#6B7280' }}>불만 합계</span>
-                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>0건</span>
+                                    <span style={{ color: '#6B7280' }}>총 상담 수</span>
+                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>
+                                        {consultationContext?.customer?.totalConsultCount ?? '-'}건
+                                    </span>
                                 </div>
+                                {consultationContext?.customer?.age && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                        <span style={{ color: '#6B7280' }}>나이</span>
+                                        <span style={{ fontWeight: 600, color: '#1A1A1A' }}>{consultationContext.customer.age}세</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px', backgroundColor: '#F9FAFB' }}>
                                 <p style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '4px', fontWeight: 700 }}>실시간 문의 내용</p>
                                 <p className={styles.aiGuideText} style={{ fontWeight: 600, color: '#1A1A1A' }}>
-                                    "{(assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
+                                    "{consultationContext?.initialMessage || (assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
                                 </p>
                             </div>
                         </div>

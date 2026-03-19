@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { User, Phone, Mail, MessageCircle, ArrowRight, Send, ChevronDown } from "lucide-react";
 import * as styles from "./Style/CustomerApply.css.ts";
 
-/** 카테고리 맵 (기존 유지) */
-const CATEGORY_MAP: Record<string, { id: number; code: string }> = {
+
+/** 카테고리 맵 */
+const CATEGORY_MAP: Record<string, { id: number; code: "MOBILE" | "INTERNET" | "IPTV" | "TELEPHONE" | "ETC" }> = {
     "요금제/부가서비스": { id: 1, code: "MOBILE" },
     "기기변경/신규가입": { id: 2, code: "MOBILE" },
     "기술지원/장애문의": { id: 3, code: "MOBILE" },
@@ -31,6 +32,7 @@ const CustomerApply: React.FC = () => {
         message: ""   
     });
 
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         if (name === "phone") {
@@ -40,16 +42,14 @@ const CustomerApply: React.FC = () => {
         }
     };
 
-    /** API 호출 대신 다음 페이지로 데이터 전달하며 이동 */
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
+
         if (!formData.category) {
             alert("문의 카테고리를 선택해주세요.");
             return;
         }
 
-        // CustomerQA 페이지로 이동 (기존 데이터 보존)
         navigate("/customer/qa", { state: { formData } });
     };
 
@@ -57,8 +57,8 @@ const CustomerApply: React.FC = () => {
         <div className={styles.container}>
             <div className={styles.card}>
                 <header className={styles.header}>
-                    <div className={styles.iconCircle}><MessageCircle size={32} color="#E6007E" /></div>
-                    <h1 className={styles.title}>LG U+ 실시간 채팅 상담</h1>
+                    <div className={styles.iconCircle}><MessageCircle size={32} color="#FFFFFF" /></div>
+                    <h1 className={styles.title}>U+프리톡 실시간 채팅 상담</h1>
                     <p className={styles.subtitle}>문의 내용을 선택하시면 상담사가 연결됩니다.</p>
                 </header>
 
@@ -105,9 +105,20 @@ const CustomerApply: React.FC = () => {
 
                     <div className={styles.inputGroup}>
                         <label className={styles.label}>상세 내용</label>
-                        <div className={styles.inputWrapper} style={{ alignItems: 'flex-start', paddingTop: '10px' }}>
-                            <Send size={16} className={styles.inputIcon} />
-                            <textarea name="message" value={formData.message} onChange={handleChange} placeholder="상담원에게 전달할 메시지를 입력하세요." className={styles.input} style={{ minHeight: '80px', border: 'none', width: '100%', outline: 'none', resize: 'none' }} required />
+                        <div className={styles.inputWrapper} style={{ alignItems: 'flex-start', minHeight: '120px' }}>
+                            <Send size={16} className={styles.inputIcon} style={{ marginTop: '25px' }} />
+                            <textarea 
+                                name="message" 
+                                value={formData.message} 
+                                onChange={handleChange} 
+                                placeholder="상담원에게 전달할 메시지를 입력하세요." 
+                                className={styles.input} 
+                                style={{ 
+                                    height: '120px', border: 'none', width: '100%', outline: 'none', resize: 'none',
+                                    paddingTop: '25px', paddingLeft: '46px', lineHeight: '1.5'
+                                }} 
+                                required 
+                            />
                         </div>
                     </div>
 

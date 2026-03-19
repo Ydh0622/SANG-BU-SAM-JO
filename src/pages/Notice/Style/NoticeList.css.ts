@@ -4,7 +4,10 @@ const UPLUS_MAGENTA = "#E6007E";
 
 export const container = style({
     padding: "40px 24px",
-    backgroundColor: "#F8F9FC",
+    background: `
+        radial-gradient(ellipse at 0% 0%, rgba(230,0,126,0.04) 0%, transparent 40%),
+        #F8F9FC
+    `,
     minHeight: "100vh",
     display: "flex",
     justifyContent: "center",
@@ -64,15 +67,17 @@ export const listItem = style({
     display: "grid",
     gridTemplateColumns: "100px 1fr 120px",
     alignItems: "center",
-    padding: "20px 0",
+    padding: "20px 8px",
     borderBottom: "1px solid #F3F4F6",
     cursor: "pointer",
     transition: "all 0.2s ease",
+    borderRadius: "12px",
     ":last-child": {
         borderBottom: "none",
     },
     ":hover": {
-        transform: "translateX(8px)",
+        transform: "translateX(6px)",
+        backgroundColor: "#FFF0F6",
     },
 });
 

@@ -5,7 +5,8 @@ import type { ConsultationResponse } from '../../types/consultation';
  * [상부상조] 상담 관련 API 서비스
  */
 
-// 1. 신규 상담 생성 요청 인터페이스 (가이드 반영)
+// --- Interfaces ---
+
 export interface CreateConsultationRequest {
     customerName: string;
     phone: string;
@@ -14,9 +15,9 @@ export interface CreateConsultationRequest {
     issueTypeId: number;
     priority: "HIGH" | "MID" | "LOW";
     initialMessage: string;
+    faqSessionId?: string;
 }
 
-// 2. 신규 상담 생성 응답 인터페이스 (가이드 반영)
 export interface CreateConsultationResponse {
     success: boolean;
     data: {
@@ -36,17 +37,19 @@ export interface ConsultationApiResponse {
     error: string | null;
 }
 
-/** * 대시보드 에러 해결을 위한 매칭 응답 인터페이스 보강 
- * 에러 메시지에서 요구하는 필드들을 선택적 속성(?)으로 추가하여 타입 불일치 해결
- */
+/** 메시지 전송 요청 인터페이스 */
+export interface SendMessageRequest {
+    content: string;         // 메시지 내용
+    senderType: "AGENT" | "CUSTOMER"; // 발신자 타입 구분
+}
+
 export interface MatchOldestResponse {
     consultationId: number;
-    consultation_id: number;      // 대시보드 호환용
+    consultation_id: number;
     customerName: string;
-    customer_name: string;        // 대시보드 호환용
+    customer_name: string;
     initialMessage: string;
     statusCode: string;
-    // 에러 메시지에서 ConsultationResponse 형식에 없다고 지적한 필드들 추가
     contact_info?: string; 
     channel_type?: 'CHAT' | 'PHONE' | 'WEB';
     priority?: 'LOW' | 'MID' | 'HIGH';
@@ -81,6 +84,8 @@ export interface ConsultationEndResponse {
     todayDoneCount: number;
 }
 
+// --- Auth Helper ---
+
 const getAuthHeader = () => {
     const token = localStorage.getItem("token"); 
     const userId = localStorage.getItem("userId"); 
@@ -102,12 +107,13 @@ export const createConsultation = async (data: CreateConsultationRequest): Promi
     return await apiStore.post('/v1/consultations', data);
 };
 
-/** [GET] 전체 상담 목록 조회 */
-export const fetchConsultations = async (): Promise<ConsultationResponse[]> => {
-    return await apiStore.get('/v1/consultations', getAuthHeader());
+/** [GET] 상담 목록 조회 (agentId로 필터링 가능) */
+export const fetchConsultations = async (agentId?: number | string): Promise<ConsultationResponse[]> => {
+    const params = agentId ? `?agentId=${agentId}` : '';
+    return await apiStore.get(`/v1/consultations${params}`, getAuthHeader());
 };
 
-/** [DELETE] 대기 상담 제거 (누락된 함수 복구) */
+/** [DELETE] 대기 상담 제거 */
 export const deleteWaitingConsultation = (consultationId: string | number) => 
     apiStore.delete(`/v1/consultations/waiting/${consultationId}`, getAuthHeader());
 
@@ -140,11 +146,26 @@ export const fetchWaitingConsultations = async (): Promise<ConsultationResponse[
 export const getConsultationDetail = (consultationId: string | number) => 
     apiStore.get<ConsultationResponse>(`/v1/consultations/${consultationId}`, getAuthHeader());
 
+/** 상담 컨텍스트 조회 (캐시) */
+export const getConsultationContext = (consultationId: string | number) =>
+    apiStore.get(`/v1/consultations/${consultationId}/context`, getAuthHeader());
+
 /** 상담 메시지 전송 */
-export const sendConsultationMessage = (consultationId: string | number, message: string) => 
-    apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message }, getAuthHeader());
+export const sendConsultationMessage = (consultationId: string | number, message: string, senderType?: string) =>
+    apiStore.post(`/v1/consultations/${consultationId}/messages`, { content: message, ...(senderType ? { senderType } : {}) }, getAuthHeader());
 
 /** 상담 종료 */
 export const endConsultation = async (consultationId: string | number, data: ConsultationEndRequest): Promise<ConsultationEndResponse> => {
     return await apiStore.post(`/v1/consultations/${consultationId}/end`, data, getAuthHeader());
+};
+
+export interface FaqFeedbackItem {
+    question: string;
+    answer: string;
+    liked: boolean | null;
+}
+
+/** FAQ 세션 저장 (상담 신청 전 ES 결과 + 고객 피드백을 Redis에 미리 저장) */
+export const storeFaqSession = async (sessionId: string, faqs: FaqFeedbackItem[], aiAnswer?: string, aiAnswerLiked?: boolean | null): Promise<void> => {
+    await apiStore.post(`/v1/consultations/faq-sessions`, { sessionId, faqs, aiAnswer, aiAnswerLiked });
 };

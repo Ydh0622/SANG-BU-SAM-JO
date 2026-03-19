@@ -6,7 +6,6 @@ import {
     ChevronRight,
     ChevronsLeft,  
     ChevronsRight,
-    ClipboardList,
     Clock,
     Download,
     ExternalLink,
@@ -18,11 +17,11 @@ import {
     UserCheck,
 } from "lucide-react";
 import type React from "react";
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { fetchSearchList } from "../../api/services/search";
-import type { ApiConsultationItem, SearchApiResponse } from "../../api/services/search";
+import { searchConsultations } from "../../api/services/search";
+import type { ConsultationSearchHit } from "../../api/services/search";
 import * as styles from "./Style/Search.css.ts";
 
 /** 검색 결과 인터페이스*/
@@ -44,108 +43,90 @@ const ConsultationSearch: React.FC = () => {
     
     const [searchTerm, setSearchTerm] = useState("");
     const [activeFilter, setActiveFilter] = useState<string>("ALL");
-    const [searchDate, setSearchDate] = useState(""); 
+    const [searchDate, setSearchDate] = useState("");
     const [allResults, setAllResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
 
-    // 📄페이지네이션 관련 상태
+    // 페이지네이션 관련 상태
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
-    const pagesPerBlock = 5; // 한 번에 보여줄 페이지 번호 개수
+    const pagesPerBlock = 5;
 
-    /**  데이터 로드 로직 */
-    const loadSearchData = useCallback(async () => {
+    const loadSearchData = useCallback(async (page = 1, filter = activeFilter) => {
         try {
             setIsLoading(true);
-            const response: SearchApiResponse = await fetchSearchList(activeFilter === "MINE" ? "MY" : "ALL");
-            
+            const currentAgentId = Number(localStorage.getItem("userId") || 0);
             const currentAgentName = localStorage.getItem("userName") || "상담원";
-            const currentAgentId = Number(localStorage.getItem("userId") || 0); 
-            
-            const apiList: ApiConsultationItem[] = response && Array.isArray(response.data) ? response.data : [];
 
-            const convertedApi: SearchResult[] = apiList.map((item: ApiConsultationItem) => {
-                const rawDate = item.endedAt || item.startedAt || new Date().toISOString();
-                const dateObj = new Date(rawDate);
-                const formattedDate = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}.${String(dateObj.getDate()).padStart(2, '0')}`;
+            const req = {
+                keyword: searchTerm.trim() || undefined,
+                agent_id: filter === "MINE" ? currentAgentId : undefined,
+                date_from: searchDate ? `${searchDate}T00:00:00` : undefined,
+                date_to: searchDate ? `${searchDate}T23:59:59` : undefined,
+                final_result_code: filter === "REPEAT" ? "TRANSFERRED" : undefined,
+                page,
+                size: itemsPerPage,
+            };
+
+            const response = await searchConsultations(req);
+            const hits: ConsultationSearchHit[] = response.hits ?? [];
+
+            const PRODUCT_LINE_LABEL: Record<string, string> = {
+                MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
+                TELEPHONE: "유선전화", ETC: "기타",
+            };
+
+            const converted: SearchResult[] = hits.map((item) => {
+                const rawDate = item.ended_at || item.started_at || new Date().toISOString();
+                const d = new Date(rawDate);
+                const formattedDate = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+
+                const isMine = item.agent_id === currentAgentId;
+                const resultCode = item.final_result_code ?? "";
+                const processStatus: SearchResult["process_status"] =
+                    resultCode === "TRANSFERRED" ? "TRANSFERRED" :
+                    resultCode === "DONE" ? "COMPLETED" : "PENDING";
 
                 return {
-                    id: String(item.consultationId),
+                    id: String(item.consultation_id),
                     date: formattedDate,
-                    customer: item.customerName || "이름 없음",
-                    category: item.consultationCategory || "일반상담",
-                    summary: item.summaryText || "상담 기록이 없습니다.",
-                    agent: Number(item.agentId) === currentAgentId ? currentAgentName : (item.agentId ? `상담원 #${item.agentId}` : "미지정"),
-                    is_mine: Number(item.agentId) === currentAgentId, 
-                    is_repeat: false, 
-                    process_status: item.statusCode === "DONE" ? "COMPLETED" : 
-                                    item.statusCode === "IN_PROGRESS" ? "PENDING" : "TRANSFERRED"
+                    customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
+                    category: PRODUCT_LINE_LABEL[item.product_line_code ?? ""] ?? "일반상담",
+                    summary: item.summary_text || "상담 기록이 없습니다.",
+                    agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
+                    is_mine: isMine,
+                    is_repeat: resultCode === "TRANSFERRED",
+                    process_status: processStatus,
                 };
             });
 
-            const uniqueResults = Array.from(new Map(convertedApi.map(item => [item.id, item])).values());
-            setAllResults(uniqueResults);
-            setCurrentPage(1); // 데이터 로드시 페이지 리셋
-
+            setAllResults(converted);
+            setTotalCount(response.total);
+            setCurrentPage(page);
         } catch (error) {
             console.error("상담 내역 로드 실패:", error);
             setAllResults([]);
+            setTotalCount(0);
         } finally {
             setIsLoading(false);
         }
-    }, [activeFilter]);
+    }, [searchTerm, searchDate, activeFilter]);
 
     useEffect(() => {
-        loadSearchData();
-    }, [loadSearchData]);
+        loadSearchData(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    /** 필터링 로직 */
-    const filteredResults = useMemo(() => {
-        if (allResults.length === 0) return [];
-
-        return allResults.filter((res) => {
-            const term = searchTerm.trim().toLowerCase();
-            const matchSearch = !term || 
-                (res.customer || "").toLowerCase().includes(term) || 
-                (res.id || "").includes(term) || 
-                (res.summary || "").toLowerCase().includes(term);
-
-            let matchDate = true;
-            if (searchDate) {
-                const targetDate = searchDate.replace(/-/g, ".");
-                matchDate = (res.date || "").includes(targetDate);
-            }
-
-            let matchTab = true;
-            if (activeFilter === "MINE") matchTab = res.is_mine;
-            else if (activeFilter === "PENDING") matchTab = res.process_status === "PENDING";
-            else if (activeFilter === "REPEAT") matchTab = res.process_status === "TRANSFERRED";
-
-            return matchSearch && matchDate && matchTab;
-        });
-    }, [searchTerm, activeFilter, allResults, searchDate]);
-
-    // 현재 페이지에 해당하는 아이템 계산
-    const currentItems = useMemo(() => {
-        const lastIndex = currentPage * itemsPerPage;
-        const firstIndex = lastIndex - itemsPerPage;
-        return filteredResults.slice(firstIndex, lastIndex);
-    }, [filteredResults, currentPage]);
-
-    const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
+    const currentItems = allResults;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
 
     /**  현재 블록의 페이지 번호들 계산 (5개씩) */
-    const currentBlockPages = useMemo(() => {
-        const currentBlock = Math.ceil(currentPage / pagesPerBlock);
-        const startPage = (currentBlock - 1) * pagesPerBlock + 1;
-        const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
-        
-        const pages = [];
-        for (let i = startPage; i <= endPage; i++) {
-            pages.push(i);
-        }
-        return pages;
-    }, [currentPage, totalPages]);
+    const currentBlock = Math.ceil(currentPage / pagesPerBlock);
+    const startPage = (currentBlock - 1) * pagesPerBlock + 1;
+    const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
+    const currentBlockPages: number[] = [];
+    for (let i = startPage; i <= endPage; i++) currentBlockPages.push(i);
 
     const handleCalendarClick = () => {
         if (dateInputRef.current) {
@@ -155,7 +136,7 @@ const ConsultationSearch: React.FC = () => {
 
     const handlePageChange = (page: number) => {
         const targetPage = Math.max(1, Math.min(page, totalPages));
-        setCurrentPage(targetPage);
+        loadSearchData(targetPage);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -175,12 +156,11 @@ const ConsultationSearch: React.FC = () => {
                     { label: "전체 내역", value: "ALL", icon: <Filter size={16} /> },
                     { label: "나의 상담", value: "MINE", icon: <UserCheck size={16} /> },
                     { label: "부서 이관", value: "REPEAT", icon: <ExternalLink size={16} /> },
-                    { label: "기록 대기중", value: "PENDING", icon: <ClipboardList size={16} /> },
                 ].map((btn) => (
                     <button
                         key={btn.value}
                         type="button"
-                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); }}
+                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); loadSearchData(1, btn.value); }}
                         style={{
                             display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "16px",
                             fontSize: "14px", fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
@@ -233,18 +213,18 @@ const ConsultationSearch: React.FC = () => {
                         <button
                             type="button"
                             className={styles.resetBtn}
-                            onClick={() => { setSearchTerm(""); setSearchDate(""); setActiveFilter("ALL"); setCurrentPage(1); }}
+                            onClick={() => { setSearchTerm(""); setSearchDate(""); setActiveFilter("ALL"); }}
                         >
                             <RefreshCcw size={16} /> 초기화
                         </button>
-                        <button type="button" className={styles.searchBtn} onClick={loadSearchData}>검색하기</button>
+                        <button type="button" className={styles.searchBtn} onClick={() => loadSearchData(1)}>검색하기</button>
                     </div>
                 </div>
             </section>
 
             <section className={styles.resultSection}>
                 <div className={styles.resultHeader}>
-                    <span>검색 결과 <strong>{filteredResults.length}</strong> 건</span>
+                    <span>검색 결과 <strong>{totalCount}</strong> 건</span>
                     <button type="button" className={styles.downloadBtn}>
                         <Download size={16} /> 리포트 다운로드
                     </button>

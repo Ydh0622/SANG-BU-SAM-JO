@@ -15,7 +15,6 @@ interface CustomerFormData {
   category: string;
 }
 
-// 💡 FaqItem 구조를 이전 페이지(question)와 일치시킴
 interface FaqItem {
   faq_id: string;
   question: string;
@@ -25,6 +24,9 @@ interface FaqItem {
 interface LocationState {
   formData: CustomerFormData;
   selectedFaqContent: FaqItem[];
+  allFaqs: FaqItem[];
+  allFeedbacks: Record<string, "like" | "dislike" | null>;
+  faqSessionId?: string;
 }
 
 const CATEGORY_MAP: Record<string, { id: number; code: ProductLine }> = {
@@ -44,12 +46,13 @@ const CustomerSummary: React.FC = () => {
   const [isMatched, setIsMatched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 💡 데이터 수신 로직
+  //  1. QA 페이지에서 넘겨준 데이터와 ID 수신
   const state = location.state as LocationState;
   const formData = state?.formData || { name: "고객", phone: "", message: "", category: "기타 문의" };
   const selectedFaqContent = state?.selectedFaqContent || [];
+  const faqSessionId = state?.faqSessionId;
 
-  // [로직 통합] 매칭 감시
+  // 매칭 감시 로직 (기존 유지)
   useEffect(() => {
     let checkTimer: number | undefined;
 
@@ -73,12 +76,9 @@ const CustomerSummary: React.FC = () => {
 
   const handleStartChat = async () => {
     if (isSubmitting) return;
-
-    localStorage.removeItem("isMatched");
-    setIsMatched(false);
+    setIsSubmitting(true);
 
     const selectedCategory = CATEGORY_MAP[formData.category] || CATEGORY_MAP["기타 문의"];
-    setIsSubmitting(true);
 
     try {
       const payload: CreateConsultationRequest = {
@@ -88,26 +88,31 @@ const CustomerSummary: React.FC = () => {
         productLineCode: selectedCategory.code,
         issueTypeId: selectedCategory.id,
         priority: "MID",
-        initialMessage: formData.message
+        initialMessage: formData.message,
+        ...(faqSessionId ? { faqSessionId } : {})
       };
 
       const result: CreateConsultationResponse = await createConsultation(payload);
-      const consultationId = result?.data?.consultationId ?? 
+      const consultationId = result?.data?.consultationId ??
                            (result as unknown as { consultationId: number }).consultationId;
 
       if (consultationId) {
-        localStorage.setItem("customerInquiry", JSON.stringify({
-          message: formData.message,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }));
-
-        localStorage.setItem("currentConsultationId", consultationId.toString());
-        localStorage.setItem("isMatched", "false"); 
-        setShowModal(true); 
+        localStorage.setItem("customerInquiry", formData.message);
+        localStorage.setItem("consultationId", consultationId.toString());
+        localStorage.setItem("isMatched", "false");
+        setShowModal(true);
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "상담 신청 실패";
-      alert(message);
+      const axiosError = error as { response?: { data?: { code?: string }; status?: number } };
+      const code = axiosError?.response?.data?.code;
+      if (axiosError?.response?.status === 409 && code === "CONSULT_DUPLICATE") {
+        alert("이미 대기 중인 상담이 있습니다.\n상담사가 연결될 때까지 기다려 주세요.");
+      } else if (axiosError?.response?.status === 409 && code === "CONSULT_DUPLICATE_IN_PROGRESS") {
+        alert("이미 진행 중인 상담이 있습니다.\n상담사와 연결된 채팅창을 확인해 주세요.");
+      } else {
+        const message = error instanceof Error ? error.message : "상담 신청 실패";
+        alert(message);
+      }
       setShowModal(false);
     } finally {
       setIsSubmitting(false);
@@ -131,7 +136,6 @@ const CustomerSummary: React.FC = () => {
           <div className={styles.contentBox}>{formData.message}</div>
         </div>
 
-        {/* 💡 추천 답변 출력 영역 (이미지 스타일 적용) */}
         <div className={styles.section}>
           <div className={styles.label}><ClipboardList size={16} /> 내가 확인한 답변</div>
           <div style={{ backgroundColor: '#FFF1F8', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -165,6 +169,7 @@ const CustomerSummary: React.FC = () => {
         </div>
       </div>
 
+      {/* 매칭 모달 영역 */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
           <div style={{ backgroundColor: 'white', padding: '40px 30px', borderRadius: '24px', textAlign: 'center', width: '85%', maxWidth: '400px', position: 'relative' }}>
@@ -177,9 +182,7 @@ const CustomerSummary: React.FC = () => {
             {isMatched ? (
               <>
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative' }}>
-                    <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
-                  </div>
+                  <CheckCircle2 size={64} color="#E6007E" className="animate-bounce" />
                 </div>
                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>상담사가 연결되었습니다!</h3>
                 <p style={{ color: '#6B7280', marginTop: '8px' }}>잠시 후 채팅방으로 입장합니다...</p>

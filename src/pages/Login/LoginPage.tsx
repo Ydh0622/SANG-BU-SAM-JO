@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
           const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", realName);
 
-          const realUserId = userInfo?.id || response.user?.id || response.data?.user?.id || response.data?.agentId || "1"; 
+          const realUserId = userInfo?.userId || response.user?.id || response.data?.user?.id || response.data?.agentId || "1";
           localStorage.setItem("userId", String(realUserId));
 
           console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName} (ID: ${realUserId})`);
@@ -102,8 +102,7 @@ const LoginPage: React.FC = () => {
     <div className={styles.container}>
       <main className={styles.loginCard}>
         <h1 className={styles.title}>
-          <span className={styles.titleBrand}>LG U<span className={styles.titlePlus}>+</span></span>
-          <div style={{ marginTop: "4px" }}>상담 서비스</div>
+          <span className={styles.titleBrand}>LG U<span className={styles.titlePlus}>+</span> 프리톡</span>
         </h1>
 
         <p className={styles.description}>고객님의 궁금한 점을 빠르고 정확하게 해결해 드립니다.</p>
