@@ -67,11 +67,10 @@ const CustomerQA: React.FC = () => {
         fetchAnalysis();
     }, [fetchAnalysis]);
 
-    const isAllSelected = !isLoading && (
-        dynamicFaqList.length === 0 ||
-        // [수정] faq_id 대신 kbId 사용 (String 변환 필수)
-        dynamicFaqList.every(faq => feedbacks[String(faq.kbId)] != null)
-    );
+  const isAllSelected = !isLoading && (
+    (dynamicFaqList?.length ?? 0) === 0 ||
+    (dynamicFaqList ?? []).every(faq => feedbacks[String(faq.kbId)] != null)
+);
 
     const handleFeedback = (id: string | number, status: FeedbackStatus) => {
         const key = String(id);
@@ -202,15 +201,15 @@ const CustomerQA: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0 16px' }}>
                         <div style={{ flex: 1, height: '1px', backgroundColor: '#F1F5F9' }} />
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: '#FFF0F6', color: '#E6007E', padding: '5px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                            <Search size={12} /> 관련 FAQ {dynamicFaqList.length}건
+                            <Search size={12} /> {(dynamicFaqList || []).length}건
                         </div>
                         <div style={{ flex: 1, height: '1px', backgroundColor: '#F1F5F9' }} />
                     </div>
 
                     {/* FAQ 목록 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                        {dynamicFaqList.map((faq) => {
-                            // [수정] faq.kbId를 문자열로 변환하여 피드백 키로 사용
+                        {(dynamicFaqList ?? []).map((faq) => {
+                        
                             const faqKey = String(faq.kbId);
                             const currentStatus = feedbacks[faqKey];
                             return (
