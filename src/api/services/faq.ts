@@ -1,15 +1,17 @@
 import { fastApiStore } from "../client"; 
 
 export interface FaqItem {
-  faq_id: string;
-  question: string;
-  answer: string;
-  score: number;
+  // 서버에서 내려오는 필드명으로 수정
+  kbId: number | null;
+  productLineCode: string | null;
+  request: string;        
+  answer: string;        
+  customerLiked: boolean; 
 }
 
 export interface FaqAnalysisResponse {
   answer: string;
-  retrieved_faqs: FaqItem[];
+  faqList: FaqItem[];    
 }
 
 /**
@@ -22,13 +24,15 @@ export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisRe
         question_text: questionText
       }
     });
+
+
     return response as unknown as FaqAnalysisResponse;
 
   } catch (err) {
     console.error("QA API 연결 실패:", err);
     return {
       answer: "분석 데이터를 불러오지 못했습니다.",
-      retrieved_faqs: []
+      faqList: []
     };
   }
 };
