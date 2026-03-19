@@ -38,8 +38,10 @@ interface HistoryData {
 }
 
 const ConsultationHistory: React.FC = () => {
-    // App.tsx의 path="/history/:historyId"와 이름을 일치시킴
-    const { historyId } = useParams<{ historyId: string }>();
+    // [수정 포인트 1] params 이름을 id와 historyId 둘 다 대응하게 하여 undefined 방지
+    const params = useParams<{ historyId?: string; id?: string }>();
+    const actualId = params.historyId || params.id;
+    
     const navigate = useNavigate();
     const [isPhoneVisible, setIsPhoneVisible] = useState(false);
     
@@ -49,12 +51,11 @@ const ConsultationHistory: React.FC = () => {
     /** 서버에서 상세 데이터 가져오기 */
     useEffect(() => {
         const loadDetail = async () => {
-            // ID가 없으면 로딩 종료
-            if (!historyId) {
+            if (!actualId) {
                 setIsLoading(false);
                 return;
             }
-
+            
             try {
                 setIsLoading(true);
                 const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -62,15 +63,15 @@ const ConsultationHistory: React.FC = () => {
                     TELEPHONE: "유선전화", ETC: "기타",
                 };
 
-                // API 호출
-                const detail = await getConsultationDetail(historyId);
+                // [수정 포인트 2] FAQ.ts 스타일이 적용된 API 호출
+                const detail = await getConsultationDetail(actualId);
                 
+                // 데이터가 없을 경우 처리
                 if (!detail) {
                     setHistoryData(null);
                     return;
                 }
 
-                // 시간 계산 로직
                 const calcDuration = (start: string | null, end: string | null): string => {
                     if (!start || !end) return "-";
                     const diff = Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000);
@@ -80,26 +81,29 @@ const ConsultationHistory: React.FC = () => {
                     return `${m}분 ${s}초`;
                 };
 
-                // 서버 데이터를 UI용 데이터로 매핑
+                // 데이터 바인딩 및 null 방어 코드 적용
                 setHistoryData({
                     consultation_id: String(detail.consultation_id),
                     started_at: detail.started_at ? detail.started_at.replace('T', ' ').split('.')[0] : "기록 없음",
-                    ended_at: detail.ended_at ? (detail.ended_at.includes('T') ? detail.ended_at.split('T')[1].split('.')[0] : detail.ended_at) : "진행중",
+                    ended_at: detail.ended_at ? detail.ended_at.split('T')[1]?.split('.')[0] ?? "종료됨" : "진행중",
                     duration: calcDuration(detail.started_at, detail.ended_at),
                     customer_name: detail.customer_name || (detail.customer_id ? `고객 #${detail.customer_id}` : "이름 없음"),
                     mask_phone: detail.phone_mask || "정보 없음",
                     category_display: PRODUCT_LINE_LABEL[detail.product_line_code ?? ""] ?? "일반상담",
                     agent_name: detail.agent_name || (detail.agent_id ? `상담원 #${detail.agent_id}` : "미지정"),
-                    customer_request: detail.customer_request || "고객 요청 내역이 없습니다.",
+                    // customer_request가 null일 경우 첫 번째 고객 메시지 활용
+                    customer_request: detail.customer_request || 
+                                     detail.messages?.find(m => m.sender_type === "CUSTOMER")?.content || 
+                                     "고객 요청 내역이 없습니다.",
                     agent_action: detail.agent_action || "조치 내역이 없습니다.",
                     summary_text: detail.summary_text || "요약 내역이 없습니다.",
                     messages: (detail.messages || []).map(m => ({
                         id: m.message_seq,
                         sender_type_code: (m.sender_type === "CUSTOMER" || m.sender_type === "AGENT" || m.sender_type === "SYSTEM")
-                            ? m.sender_type
+                            ? m.sender_type as "CUSTOMER" | "AGENT" | "SYSTEM"
                             : "SYSTEM",
                         content: m.content,
-                        sent_at: m.sent_at ? m.sent_at.split('T')[1]?.split('.')[0] : "", 
+                        sent_at: "", // 필요한 경우 추가 데이터 연동 가능
                     })),
                 });
             } catch (error) {
@@ -111,9 +115,8 @@ const ConsultationHistory: React.FC = () => {
         };
 
         loadDetail();
-    }, [historyId]);
+    }, [actualId]);
 
-    // 로딩 상태 UI
     if (isLoading) {
         return (
             <div className={styles.container}>
@@ -124,21 +127,24 @@ const ConsultationHistory: React.FC = () => {
         );
     }
 
-    // 데이터가 없을 때 UI (404 대응)
     if (!historyData) {
         return (
             <div className={styles.container}>
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        <button type="button" onClick={() => navigate("/search")} className={styles.backButton}>
+                        <button 
+                            type="button" 
+                            onClick={() => navigate("/search")} 
+                            className={styles.backButton}
+                        >
                             <ArrowLeft size={24} color="#333" />
                         </button>
                         <h1 className={styles.title}>상담 기록 상세조회</h1>
                     </div>
                 </header>
                 <div style={{ padding: '100px 20px', textAlign: 'center' }}>
-                    <h2 style={{ color: '#E6007E', fontSize: '24px' }}>상담 기록을 찾을 수 없습니다. (ID: {historyId})</h2>
-                    <p style={{ marginTop: '16px', color: '#666' }}>해당 ID의 데이터가 존재하지 않거나 불러오는데 실패했습니다.</p>
+                    <h2 style={{ color: '#E6007E', fontSize: '24px' }}>상담 기록 상세 정보를 찾을 수 없습니다.</h2>
+                    <p style={{ marginTop: '16px', color: '#666' }}>ID: {actualId}</p>
                     <button onClick={() => navigate('/search')} style={{ marginTop: '30px', padding: '12px 24px', backgroundColor: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>목록으로 돌아가기</button>
                 </div>
             </div>
