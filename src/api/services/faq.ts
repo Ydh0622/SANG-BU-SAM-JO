@@ -30,6 +30,7 @@ export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisRe
       answer: "분석 데이터를 불러오지 못했습니다.",
       faqList: []
     }) as FaqAnalysisResponse;
+    
   } catch (err) {
     console.error("QA API 연결 실패:", err);
     return {
