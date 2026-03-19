@@ -71,7 +71,7 @@ const ConsultationSearch: React.FC = () => {
 
             const response = await searchConsultations(req);
             
-            // 1. 응답 데이터 안전하게 추출
+            // 1. 응답 데이터 안전하게 추출 (Optional Chaining)
             const hits: ConsultationSearchHit[] = response?.hits ?? [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -79,17 +79,18 @@ const ConsultationSearch: React.FC = () => {
                 TELEPHONE: "유선전화", ETC: "기타",
             };
 
-            // 2. 데이터 변환 (Null 체크 보강)
+            // 2. 데이터 변환 (서버 snake_case 필드명에 맞게 수정)
             const converted: SearchResult[] = hits.map((item) => {
-                const rawDate = item.ended_at || item.started_at || new Date().toISOString();
+                const rawDate = item.started_at || item.ended_at || new Date().toISOString();
                 const d = new Date(rawDate);
                 const formattedDate = isNaN(d.getTime()) 
                     ? "날짜 없음" 
                     : `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-                // 타입 차이 방지를 위해 Number() 처리 및 null 체크
-                const isMine = item.agent_id != null && Number(item.agent_id) === currentAgentId;
+                // 타입 차이 방지를 위해 Number() 처리 및 엄격한 비교
+                const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
                 const resultCode = item.final_result_code ?? "";
+                
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
                     resultCode === "DONE" ? "COMPLETED" : "PENDING";
@@ -97,11 +98,11 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
-                    // customer_name이 null이면 ID라도 표시
+                    // customer_name이 null이면 ID 표시 (서버 데이터 반영)
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code ?? ""] ?? "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
-                    // agent_name이 null이면 ID라도 표시
+                    // agent_name이 null이면 ID 표시
                     agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
                     is_mine: isMine,
                     is_repeat: resultCode === "TRANSFERRED",
@@ -109,7 +110,7 @@ const ConsultationSearch: React.FC = () => {
                 };
             });
 
-            // 3. 상태 업데이트
+            // 3. 상태 업데이트 및 콘솔 로그로 확인
             setAllResults(converted);
             setTotalCount(response?.total ?? 0);
             setCurrentPage(page);
@@ -124,10 +125,10 @@ const ConsultationSearch: React.FC = () => {
 
     useEffect(() => {
         loadSearchData(1);
-    }, [loadSearchData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const totalPages = Math.ceil(totalCount / itemsPerPage);
-
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
     const startPage = (currentBlock - 1) * pagesPerBlock + 1;
     const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
@@ -166,7 +167,7 @@ const ConsultationSearch: React.FC = () => {
                     <button
                         key={btn.value}
                         type="button"
-                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); loadSearchData(1, btn.value); }}
+                        onClick={() => { setActiveFilter(btn.value); loadSearchData(1, btn.value); }}
                         style={{
                             display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "16px",
                             fontSize: "14px", fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
@@ -193,7 +194,7 @@ const ConsultationSearch: React.FC = () => {
                                 className={styles.input}
                                 placeholder="검색어 입력..."
                                 value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                                 style={{ color: "#1A1A1A", fontWeight: 600 }}
                             />
                         </div>
@@ -209,7 +210,7 @@ const ConsultationSearch: React.FC = () => {
                                 type="date" 
                                 className={styles.input} 
                                 value={searchDate}
-                                onChange={(e) => { setSearchDate(e.target.value); setCurrentPage(1); }}
+                                onChange={(e) => setSearchDate(e.target.value)}
                                 style={{ color: "#1A1A1A", fontWeight: 800, fontFamily: "inherit", cursor: 'pointer' }} 
                             />
                         </div>
