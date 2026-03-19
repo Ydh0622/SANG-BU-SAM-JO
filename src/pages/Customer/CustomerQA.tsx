@@ -54,7 +54,7 @@ const CustomerQA: React.FC = () => {
         try {
             const data = await getSimilarFaq(formData.message);
             setAiAnswer(data.answer);
-            setDynamicFaqList(data.faqList); // 서버 응답의 faqList 사용
+            setDynamicFaqList(data.faqList); 
         } catch (error) {
             console.error("분석 데이터를 가져오는 중 오류 발생:", error);
             setAiAnswer("시스템 오류로 인해 답변을 생성하지 못했습니다. 상담사에게 연결해 주세요.");
@@ -85,7 +85,7 @@ const CustomerQA: React.FC = () => {
         if (!isAllSelected) return;
 
         const selectedFaqContent = dynamicFaqList
-            // [수정] faq_id 대신 kbId 사용
+            
             .filter((faq: FaqItem) => feedbacks[String(faq.kbId)] === "like")
             .map((faq: FaqItem) => {
                 const firstSentence = faq.answer.split('.')[0];
@@ -95,16 +95,16 @@ const CustomerQA: React.FC = () => {
 
                 return {
                     ...faq,
-                    request: summaryText // [수정] question 대신 request 사용
+                    request: summaryText 
                 };
             });
 
         // FAQ 피드백을 Redis에 미리 저장
         if (dynamicFaqList.length > 0) {
             const faqPayload: FaqFeedbackItem[] = dynamicFaqList.map(faq => ({
-                question: faq.request, // [수정] request 필드 사용
+                question: faq.request, 
                 answer: faq.answer,
-                // [수정] faq_id 대신 kbId 사용 및 삼항 연산자 괄호 오류 수정
+             
                 liked: feedbacks[String(faq.kbId)] === "like" ? true : feedbacks[String(faq.kbId)] === "dislike" ? false : null,
             }));
             const aiAnswerLiked = feedbacks["AI"] === "like" ? true : feedbacks["AI"] === "dislike" ? false : null;
@@ -215,7 +215,7 @@ const CustomerQA: React.FC = () => {
                             return (
                                 <div key={faqKey} className={styles.qaItem}>
                                     <div className={styles.qaTextContainer}>
-                                        <div className={styles.qaTitle}>{faq.request}</div> {/* [수정] request 필드 */}
+                                        <div className={styles.qaTitle}>{faq.request}</div> 
                                         <div className={styles.qaText}>{faq.answer}</div>
                                     </div>
                                     <div className={styles.feedbackButtonGroup}>

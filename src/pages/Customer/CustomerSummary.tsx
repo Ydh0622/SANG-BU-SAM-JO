@@ -16,8 +16,8 @@ interface CustomerFormData {
 }
 
 interface FaqItem {
-  faq_id: string;
-  question: string;
+  kbId: string;
+  request: string;
   answer: string;
 }
 
@@ -141,9 +141,9 @@ const CustomerSummary: React.FC = () => {
           <div style={{ backgroundColor: '#FFF1F8', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {selectedFaqContent.length > 0 ? (
               selectedFaqContent.map((faq) => (
-                <div key={faq.faq_id} style={{ fontSize: '14px', color: '#374151', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                <div key={faq.kbId} style={{ fontSize: '14px', color: '#374151', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                   <span style={{ color: '#E6007E', fontWeight: 'bold' }}>•</span>
-                  <span>{faq.question}</span>
+                  <span>{faq.request}</span>
                 </div>
               ))
             ) : (
