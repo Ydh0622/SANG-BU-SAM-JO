@@ -11,7 +11,6 @@ import {
     LogOut,
     Megaphone,
     MessageSquare,
-    Phone,
     User,
     Users,
     X,
@@ -23,43 +22,88 @@ import { useNavigate } from "react-router-dom";
 
 import { useConsultation, type CustomerInfo } from "../../hooks/useConsultation";
 import { useLocalStorage } from "../../hooks/useLocalStorage"; 
-import { fetchConsultations, fetchWaitingCount, fetchWaitingConsultations } from "../../api/services/consultation"; 
-// import type { ConsultationResponse } from "../../types/consultation";  
+import { 
+    fetchConsultations, 
+    fetchWaitingCount, 
+    fetchWaitingConsultations,
+    deleteWaitingConsultation,
+    matchOldestConsultation,
+    assignConsultation,
+    getConsultationContext
+} from "../../api/services/consultation";
 import * as styles from "./Style/Dashboard.css.ts";
 
-// 기존 ConsultationResponse가 있다면 이름을 잠시 피해서 확장하거나 직접 수정합니다.
 import type { ConsultationResponse as BaseResponse } from "../../types/consultation";
 
-export interface ConsultationResponse extends BaseResponse {
-    consultationId?: number;     // 백엔드 실제 필드 (카멜 케이스)
-    customerName?: string | null; // 백엔드 실제 필드
+
+// --- 인터페이스 정의 ---
+export interface ConsultationResponse extends Omit<BaseResponse, 'created_at' | 'updated_at' | 'customer_name' | 'consultation_id' | 'content_preview' | 'status'> {
+    created_at?: string;
+    updated_at?: string;
+    customer_name?: string | null;
+    consultation_id?: number;
+    consultationId?: number;     
+    customerName?: string | null; 
     initialMessage?: string | null;
+    content_preview?: string | null;
     statusCode?: string;
     priorityCode?: string;
     productLineCode?: string;
     channelCode?: string;
+    endedAt?: string;
+    status?: BaseResponse['status'] | string; 
 }
 
-
+interface ConsultationContext {
+    consultationId: number;
+    customer: {
+        customerId: number;
+        name: string;
+        grade: string;
+        gender: string;
+        age: number;
+        totalConsultCount: number;
+        lastConsultedAt: string | null;
+        phoneMask: string;
+        emailMask: string;
+    } | null;
+    recentConsultations: Array<{
+        consultationId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        summaryText: string;
+        endedAt: string;
+        priceSensitivity: string | null;
+        decisionStyle: string | null;
+        anxietyLevel: string | null;
+        sentimentLabel: string | null;
+    }>;
+    currentConsultation: {
+        consultationId: number;
+        customerId: number;
+        agentId: number;
+        statusCode: string;
+        channelCode: string;
+        productLineCode: string;
+        issueTypeId: number;
+        priorityCode: string;
+    } | null;
+    initialMessage: string;
+}
 
 const NOTICES = [
     { 
         id: 1, 
         title: "[점검] AI 상담 요약 엔진 정기 점검 안내", 
         date: "02.21",
-        content: "안녕하세요. 시스템 안정화를 위해 AI 엔진 정기 점검이 진행됩니다. 점검 중에는 요약 기능이 일시적으로 지연될 수 있습니다.\n\n- 일시: 2026.02.25 02:00 ~ 04:00"
+        content: "안녕하세요. 시스템 안정화를 위해 AI 엔진 정기 점검이 진행됩니다."
     },
     { 
         id: 2, 
         title: "상담사 메모 저장 및 수정 기능 업데이트", 
         date: "02.19",
-        content: "상담 중 작성한 메모를 즉시 저장하고, 나중에 마이페이지에서 수정할 수 있는 기능이 추가되었습니다. 업무 효율을 높여보세요!"
-    },
-    { 
-        id: 3, 
-        title: "신규 상담사 업무 가이드북 최신판 배포", 
-        date: "02.15", 
-        content: "2026년 상반기 통합 업무 가이드북 v2.1이 배포되었습니다. 지식 베이스(KB) 메뉴에서 다운로드 가능합니다."
+        content: "상담 중 작성한 메모를 즉시 저장하고 나중에 수정할 수 있습니다."
     },
 ];
 
@@ -78,13 +122,16 @@ const Dashboard: React.FC = () => {
     const [now, setNow] = useState(new Date());
     const [showGuide, setShowGuide] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-    
-    const [activities, setActivities] = useState<ConsultationResponse[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+    
+    const [consultationContext, setConsultationContext] = useState<ConsultationContext | null>(null);
+    const [isCooldown, setIsCooldown] = useState(false);
+    const [skippedCustomerIds, setSkippedCustomerIds] = useState<Set<number | string>>(new Set());
+
+    const [activities, setActivities] = useState<ConsultationResponse[]>([]);
     const [selectedNotice, setSelectedNotice] = useState<typeof NOTICES[0] | null>(null);
 
+    const [todayDoneCountFromServer] = useState<number>(0);
     const [apiWaitingList, setApiWaitingList] = useState<ConsultationResponse[]>([]);
     
     const waitingList = useMemo<(ConsultationResponse | CustomerInfo)[]>(() => {
@@ -101,33 +148,36 @@ const Dashboard: React.FC = () => {
     ]);
 
     const completedCount = useMemo(() => {
-        return activities.filter(activity => activity.status === 'DONE').length;
-    }, [activities]); 
+        if (todayDoneCountFromServer > 0) return todayDoneCountFromServer;
+
+        const todayStr = new Date().toLocaleDateString('en-CA'); 
+        return activities.filter(activity => {
+            const status = String(activity.status || activity.statusCode || "").trim().toUpperCase();
+            const isDone = (status === 'DONE');
+            const dateSource = activity.endedAt || activity.updated_at || activity.created_at;
+            if (!dateSource) return false;
+            const activityLocalDate = new Date(dateSource).toLocaleDateString('en-CA');
+            return isDone && activityLocalDate === todayStr;
+        }).length;
+    }, [activities, todayDoneCountFromServer]); 
 
     const loadDashboardData = useCallback(async () => {
         const token = localStorage.getItem("token");
-        if (!token) {
-            setIsLoading(false);
-            return;
-        }
+        if (!token) return;
+
+        const currentUserId = localStorage.getItem("userId");
 
         try {
-            setIsLoading(true);
-            const [, , waitingRes] = await Promise.all([
-                fetchConsultations(),
+            const [consultationsRes, , waitingRes] = await Promise.all([
+                fetchConsultations(currentUserId ?? undefined),
                 fetchWaitingCount(),
                 fetchWaitingConsultations()
             ]);
 
-            setActivities([]);
-
-            if (Array.isArray(waitingRes)) {
-                setApiWaitingList(waitingRes as ConsultationResponse[]);
-            }
+            setActivities(Array.isArray(consultationsRes) ? consultationsRes : []);
+            setApiWaitingList(Array.isArray(waitingRes) ? waitingRes : []);
         } catch (error) {
             console.error("데이터 로드 실패:", error);
-        } finally {
-            setIsLoading(false);
         }
     }, []);
 
@@ -137,165 +187,207 @@ const Dashboard: React.FC = () => {
             navigate("/", { replace: true });
             return;
         }
-        loadDashboardData();
+        
+        const init = async () => {
+            await loadDashboardData();
+        };
+        init();
         
         const interval = setInterval(() => {
-            if (localStorage.getItem("token")) loadDashboardData();
-        }, 30000);
+            if (localStorage.getItem("token")) {
+                loadDashboardData();
+            }
+        }, 3000);
+
         return () => clearInterval(interval);
-    }, [navigate, loadDashboardData]);
+    }, [navigate, loadDashboardData]); 
 
-    const assignNextCustomer = useCallback((currentStatus?: string) => {
+    const assignNextCustomer = useCallback(async (currentStatus?: string) => {
         const checkStatus = currentStatus || workStatus;
-        if (checkStatus !== "AVAILABLE" || assignedCustomer) return;
 
-        if (waitingList.length > 0) {
-            const nextCustomer = waitingList[0];
-            setAssignedCustomer(nextCustomer as unknown as CustomerInfo);
+        if (checkStatus !== "AVAILABLE" || assignedCustomer || isCooldown) return;
+
+        try {
+            const data = await matchOldestConsultation();
+
+            if (!data?.consultationId) return;
+            if (skippedCustomerIds.has(data.consultationId)) return;
+
+            const matchedCustomer: ConsultationResponse = {
+                consultationId: data.consultationId,
+                consultation_id: data.consultationId,
+                customerName: data.customerName ?? "고객",
+                customer_name: data.customerName ?? "고객",
+                initialMessage: data.initialMessage ?? "상담 요청이 도착했습니다.",
+                channelCode: data.meta?.channelCode ?? undefined,
+                productLineCode: data.meta?.productLineCode ?? undefined,
+                priorityCode: data.meta?.priorityCode ?? undefined,
+                created_at: data.meta?.createdAt ?? undefined,
+                statusCode: "WAITING",
+                
+            };
+
+            setAssignedCustomer(matchedCustomer as unknown as CustomerInfo);
+
+            try {
+                const ctx = await getConsultationContext(data.consultationId);
+                setConsultationContext(ctx as unknown as ConsultationContext);
+            } catch (e) {
+                console.warn("Context 로드 실패:", e);
+                setConsultationContext(null);
+            }
+        } catch (error) {
+            console.error("가장 오래된 대기 상담 조회 실패:", error);
         }
-    }, [workStatus, assignedCustomer, setAssignedCustomer, waitingList]); 
+    }, [workStatus, assignedCustomer, isCooldown, skippedCustomerIds, setAssignedCustomer]);
 
     const handleToggleStatus = useCallback(() => {
         toggleWorkStatus();
         if (workStatus !== "AVAILABLE") {
-            setTimeout(() => {
-                assignNextCustomer("AVAILABLE");
-            }, 100);
+            setTimeout(() => assignNextCustomer("AVAILABLE"), 100);
         }
     }, [workStatus, toggleWorkStatus, assignNextCustomer]); 
 
-
-    const handleRemoveWaitingCustomer = useCallback((customerId: string | number) => {
+    const handleRemoveWaitingCustomer = useCallback(async (customerId: string | number) => {
         if (window.confirm("이 고객을 대기열에서 제외하시겠습니까?")) {
-            const localData = localStorage.getItem("waitingCustomers");
-            const currentWaiting: CustomerInfo[] = localData ? JSON.parse(localData) : [];
-            const updatedWaiting = currentWaiting.filter(c => c.id !== customerId);
-            localStorage.setItem("waitingCustomers", JSON.stringify(updatedWaiting));
-            
-            // any 대신 ConsultationResponse 타입을 사용하고 속성 존재 여부를 체크합니다.
-            setApiWaitingList((prev) => 
-                prev.filter((item) => {
-                    const id = 'consultation_id' in item ? item.consultation_id : (item as { id: string | number }).id;
-                    return id !== customerId;
-                })
-            ); 
-        }
-    }, []);
-
-const handleAcceptConsultation = useCallback(
-    (customer: CustomerInfo | ConsultationResponse) => {
-        // 1. 타입 캐스팅 (확장된 인터페이스를 사용하여 속성 접근 허용)
-        const consultation = customer as unknown as ConsultationResponse;
-        const info = customer as unknown as CustomerInfo;
-
-        // 2. ID 및 기본 정보 추출 (우선순위: 백엔드 카멜케이스 > 스네이크케이스 > 로컬데이터)
-        const id = consultation.consultationId || consultation.consultation_id || info.id;
-        const name = consultation.customerName || consultation.customer_name || info.name || "고객";
-        const msg = consultation.initialMessage || consultation.content_preview || info.inquiryMessage || "상담 신청합니다.";
-        
-
-        if (!id) {
-            alert("상담 ID가 유효하지 않습니다.");
-            return;
-        }
-
-        // 3. [데이터 전달] 실시간 대기 수 저장
-        // 상세 페이지에서 'realtime_waiting_count' 키로 읽어갑니다.
-        if (waitingList) {
-            localStorage.setItem("realtime_waiting_count", waitingList.length.toString());
-        }
-
-        // 4. [데이터 전달] 상담 매칭 상태 및 채팅 첫 메시지 저장
-        localStorage.setItem("isMatched", "true");
-        localStorage.setItem("lastInquiry", JSON.stringify({
-            message: msg,
-            customerName: name, // 상세 페이지 상단 이름 연동용
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }));
-
-        // 5. [데이터 전달] 상세 페이지 좌측 '고객 정보' 카드용 데이터
-        // 🔴 상세 페이지의 'customer_name'에 이 'name'이 할당됩니다.
-        localStorage.setItem("currentCustomer", JSON.stringify({
-            name: name,
-        }));
-
-        // 6. 상태 초기화 및 페이지 이동
-        setAssignedCustomer(null);
-        navigate(`/consultation/${id}`);
-    },
-    // waitingList.length를 넣어줘야 숫자가 바뀔 때마다 함수가 최신 숫자를 기억합니다.
-    [navigate, setAssignedCustomer, waitingList?.length]
-);
-    const handleRejectConsultation = useCallback(() => {
-    // 1. 현재 배정된 고객 모달을 즉시 닫음
-    setAssignedCustomer(null);
-
-    // 2. 3초 뒤에 다음 대기자를 자동으로 배정
-    setTimeout(() => {
-        // 상담 가능 상태(AVAILABLE)이고 대기열에 다음 사람이 있을 때만 실행
-        if (workStatus === "AVAILABLE" && waitingList.length > 0) {
-            const nextCustomer = waitingList[0] as unknown as CustomerInfo;
-            setAssignedCustomer(nextCustomer);
-        }
-    }, 3000); 
-    
-   
-}, [workStatus, waitingList, setAssignedCustomer]);
-
-    const handleNotificationClick = (id: number) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    };
-
-    const markAllAsRead = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    };
-
-    const handleLogout = useCallback(() => {
-        if (window.confirm("로그아웃 하시겠습니까?")) {
-            localStorage.clear();
-            navigate("/", { replace: true });
-        }
-    }, [navigate]); 
-
-    const handleSaveDashboardMemo = useCallback(() => {
-        if (!memo.trim()) return alert("내용을 입력해주세요.");
-        const newMemo = {
-            id: Date.now(),
-            date: new Date().toLocaleDateString("ko-KR"),
-            customer: "개인 메모",
-            category: "일반",
-            content: memo
-        };
-        const existingMemos = JSON.parse(localStorage.getItem("savedMemos") || "[]");
-        localStorage.setItem("savedMemos", JSON.stringify([newMemo, ...existingMemos]));
-        alert("메모가 저장되었습니다!");
-    }, [memo]); 
-
-    const handleDeleteActivity = useCallback((e: React.MouseEvent, consultationId: string | number) => {
-        e.stopPropagation();
-        if (window.confirm("이 상담 내역을 삭제하시겠습니까?")) {
-            setActivities(prev => prev.filter(item => item.consultation_id !== consultationId));
-            const localHistoryRaw = localStorage.getItem("consultationHistory");
-            if (localHistoryRaw) {
-                const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
-                const updatedHistory = localHistory.filter((item) => item.consultation_id !== consultationId);
-                localStorage.setItem("consultationHistory", JSON.stringify(updatedHistory));
+            try {
+                await deleteWaitingConsultation(customerId);
+                setApiWaitingList((prev) => 
+                    prev.filter((item) => {
+                        const id = item.consultationId || item.consultation_id || (item as unknown as { id: string | number }).id;
+                        return id !== customerId;
+                    })
+                ); 
+                await loadDashboardData();
+                alert("성공적으로 제거되었습니다.");
+            } catch (error) {
+                console.error("제거 실패:", error);
+                alert("제거 처리 중 오류가 발생했습니다. 권한을 확인해주세요.");
             }
         }
-    }, []); 
+    }, [loadDashboardData]);
 
+    const handleAcceptConsultation = useCallback(
+        async (customer: CustomerInfo | ConsultationResponse) => {
+            const consultation = customer as ConsultationResponse;
+            const info = customer as CustomerInfo;
+
+            const id = consultation.consultationId || consultation.consultation_id || info.id;
+            const name = consultation.customerName || consultation.customer_name || info.name || "고객";
+            const msg =
+                consultation.initialMessage ||
+                consultation.content_preview ||
+                info.inquiryMessage ||
+                "상담 신청합니다.";
+
+            if (!id) return;
+
+            try {
+                const assigned = await assignConsultation(id);
+
+                localStorage.setItem(
+                    "realtime_waiting_count",
+                    String(waitingList.length > 0 ? waitingList.length - 1 : 0)
+                );
+                localStorage.setItem("isMatched", "true");
+                localStorage.setItem(
+                    "lastInquiry",
+                    JSON.stringify({
+                        message: msg,
+                        customerName: name,
+                        time: new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        }),
+                    })
+                );
+                localStorage.setItem(
+                    "currentCustomer",
+                    JSON.stringify({
+                        name,
+                        consultationId: assigned.consultationId,
+                        agentId: assigned.agentId,
+                        startedAt: assigned.startedAt,
+                        status: assigned.status,
+                    })
+                );
+
+                setAssignedCustomer(null);
+                setConsultationContext(null);
+                navigate(`/consultation/${id}`);
+            } catch (error) {
+                console.error("상담 배정 실패:", error);
+                alert("상담 배정 처리에 실패했습니다.");
+            }
+        },
+        [navigate, setAssignedCustomer, waitingList.length]
+    );
+
+    const handleRejectConsultation = useCallback(() => {
+        if (assignedCustomer) {
+            const id = (assignedCustomer as unknown as ConsultationResponse).consultationId || 
+                       (assignedCustomer as unknown as ConsultationResponse).consultation_id || 
+                       (assignedCustomer as CustomerInfo).id;
+            
+            if (id) {
+                setSkippedCustomerIds(prev => new Set(prev).add(id));
+            }
+        }
+
+        setAssignedCustomer(null);
+        setConsultationContext(null);
+        setIsCooldown(true);
+        
+        setTimeout(() => {
+            setIsCooldown(false);
+        }, 5000);
+    }, [assignedCustomer, setAssignedCustomer]);
+
+    const handleNotificationClick = (id: number) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    const markAllAsRead = (e: React.MouseEvent) => { e.stopPropagation(); setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))); };
+    const handleLogout = useCallback(() => { if (window.confirm("로그아웃 하시겠습니까?")) { localStorage.clear(); navigate("/", { replace: true }); } }, [navigate]); 
+    const handleSaveDashboardMemo = useCallback(() => {
+    if (!memo.trim()) return alert("내용을 입력해주세요.");
+
+    const localData = localStorage.getItem("savedMemos");
+    const prevMemos = localData ? JSON.parse(localData) : [];
+
+    const newMemo = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString(),
+        customer: "대시보드 메모",
+        category: "일반",
+        content: memo.trim(),
+    };
+
+    const updatedMemos = [newMemo, ...prevMemos];
+    localStorage.setItem("savedMemos", JSON.stringify(updatedMemos));
+
+    alert("메모가 저장되었습니다.");
+    setMemo(""); 
+
+}, [memo, setMemo]); 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (workStatus !== "AVAILABLE" || assignedCustomer) return;
+
+        const interval = setInterval(() => {
+            assignNextCustomer();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [workStatus, assignedCustomer, assignNextCustomer]);
 
     return (
         <div className={styles.container}>
             <header className={styles.header}>
                 <div className={styles.headerContent}>
                     <div className={styles.logoArea} onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-                        <span className={styles.brandLogo}> LG U<span className={styles.magentaText}>+</span></span>
+                        <span className={styles.brandLogo}>LG U<span className={styles.magentaText}>+</span> 프리톡 서비스</span>
                     </div>
                     <div className={styles.headerRight}>
                         <div className={styles.dateTimeDesktop}>
@@ -309,18 +401,12 @@ const handleAcceptConsultation = useCallback(
                             </button>
                             {isNotificationOpen && (
                                 <div className={styles.notificationPopover}>
-                                    <div className={styles.popoverHeader}>
-                                        <span>실시간 업무 알림</span>
-                                        <button onClick={markAllAsRead}>모두 읽음</button>
-                                    </div>
+                                    <div className={styles.popoverHeader}><span>실시간 업무 알림</span><button onClick={markAllAsRead}>모두 읽음</button></div>
                                     <div className={styles.popoverList}>
                                         {notifications.map(n => (
                                             <div key={n.id} className={`${styles.popoverItem} ${n.isRead ? styles.readItem : ''}`} onClick={() => handleNotificationClick(n.id)}>
                                                 {!n.isRead && <div className={styles.unreadDot} />}
-                                                <div className={styles.popoverContent}>
-                                                    <p className={styles.popoverTitle}>{n.title}</p>
-                                                    <span className={styles.popoverTime}>{n.time}</span>
-                                                </div>
+                                                <div className={styles.popoverContent}><p className={styles.popoverTitle}>{n.title}</p><span className={styles.popoverTime}>{n.time}</span></div>
                                             </div>
                                         ))}
                                     </div>
@@ -341,17 +427,21 @@ const handleAcceptConsultation = useCallback(
                 <div className={styles.dashboardGrid}>
                     <div className={styles.mainContentLeft}>
                         <div className={styles.alertBanner}>
-                            <div className={styles.alertLevelBadge.CRITICAL}><AlertTriangle size={14} /> CRITICAL</div>
-                            <p className={styles.alertText}>[긴급 이슈] 현재 서울 지역 IPTV 접속 장애 문의가 평소 대비 250% 급증하고 있습니다.</p>
+                            <div className={styles.alertLevelBadge.CRITICAL}>
+                                <AlertTriangle size={14} />
+                                <span className={styles.alertLevelText}>CRITICAL</span>
+                            </div>
+                            <p className={styles.alertText}>현재 서울 지역 IPTV 접속 장애 문의가 급증하고 있습니다.</p>
                             <button type="button" className={styles.alertLinkBtn} onClick={() => setShowGuide(true)}>가이드 보기</button>
                         </div>
 
                         <section className={styles.heroCard}>
                             <div className={styles.heroInfo}>
+                                <div className={styles.heroBadge}>LG U+ 프리톡</div>
                                 <h2 className={styles.heroTitle}>반갑습니다, {adminName}님! 👋</h2>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
-                                    {workStatus === "AVAILABLE" ? <Activity size={16} className={styles.magentaText} /> : <Clock size={16} color="#999" />}
-                                    <span style={{ fontSize: "14px", fontWeight: 600 }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
+                                    {workStatus === "AVAILABLE" ? <Activity size={16} color="#FF80BC" /> : <Clock size={16} color="rgba(255,255,255,0.5)" />}
+                                    <span style={{ fontSize: "14px", fontWeight: 600, color: workStatus === "AVAILABLE" ? "#FF80BC" : "rgba(255,255,255,0.6)" }}>{workStatus === "AVAILABLE" ? "상담 대기 중" : "업무 정지 중"}</span>
                                 </div>
                             </div>
                             <button type="button" className={workStatus === "AVAILABLE" ? styles.workStopBtn : styles.workStartBtn} onClick={handleToggleStatus}>
@@ -362,18 +452,12 @@ const handleAcceptConsultation = useCallback(
                         <div className={styles.statsGrid}>
                             <div className={styles.statCard} onClick={() => setIsQueueModalOpen(true)} style={{ cursor: 'pointer' }}>
                                 <div className={styles.statIcon} style={{ background: "#FFF0F6", color: "#E6007E" }}><Users size={20} /></div>
-                                <div>
-                                    <span className={styles.statLabel}>실시간 대기</span>
-                                    <div className={styles.statValue}>{waitingList.length}명</div>
-                                    <span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span>
-                                </div>
+                                <div><span className={styles.statLabel}>실시간 대기</span><div className={styles.statValue}>{waitingList.length}명</div><span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 600 }}>명단 보기 &gt;</span></div>
                             </div>
+                 
                             <div className={styles.statCard}>
                                 <div className={styles.statIcon} style={{ background: "#F0FDF4", color: "#22C55E" }}><CheckCircle2 size={20} /></div>
-                                <div>
-                                    <span className={styles.statLabel}>오늘 완료</span>
-                                    <div className={styles.statValue}>{completedCount}건</div>
-                                </div>
+                                <div><span className={styles.statLabel}>오늘 완료</span><div className={styles.statValue}>{completedCount}건</div></div>
                             </div>
                             <div className={styles.statCard} onClick={() => navigate('/mypage')} style={{ cursor: 'pointer' }}>
                                 <div className={styles.statIcon} style={{ background: "#E6F0FF", color: "#007AFF" }}><FileText size={20} /></div>
@@ -382,42 +466,59 @@ const handleAcceptConsultation = useCallback(
                         </div>
 
                         <section className={styles.glassCard}>
-                            <div className={styles.cardHeader}>
-                                <h3 className={styles.cardTitle}>최근 상담 내역</h3>
-                                <button type="button" onClick={() => navigate("/search")} style={{ color: "#E6007E", background: "none", border: "none", fontWeight: 700, cursor: "pointer" }}>전체보기</button>
+                            <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 className={styles.cardTitle} style={{ marginBottom: 0 }}>최근 상담 내역</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/search')}
+                                    style={{ background: 'none', border: 'none', color: '#E6007E', cursor: 'pointer', fontSize: '14px', fontWeight: 700, padding: '4px 0', letterSpacing: '-0.3px' }}
+                                >
+                                    전체보기
+                                </button>
                             </div>
-                            <div className={styles.activityList}>
-                                {isLoading ? (
-                                    <p style={{ padding: "20px", textAlign: "center", color: "#999" }}>데이터 로드 중...</p>
-                                ) : activities.length > 0 ? (
-                                    activities.slice(0, 5).map((log, index) => (
-                                        <div key={`activity-${log.consultation_id}-${index}`} style={{ position: 'relative' }}>
-                                            <button type="button" className={styles.activityItem} onClick={() => navigate(`/history/${log.consultation_id}`)}>
-                                                <div className={styles.timeTag}>
-                                                    {log.channel_type === "CALL" ? <Phone size={18} /> : <MessageSquare size={18} />}
+                            {activities.length === 0 ? (
+                                <div style={{ padding: "60px 0", textAlign: "center", color: "#999", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <MessageSquare size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+                                    <p style={{ fontSize: '14px', fontWeight: 500 }}>상담 내역이 없습니다.</p>
+                                </div>
+                            ) : (
+                                <div className={styles.activityList}>
+                                    {activities.slice(0, 5).map((item, idx) => {
+                                        const id = (item as ConsultationResponse).consultationId || (item as ConsultationResponse).consultation_id;
+                                        const name = (item as ConsultationResponse).customerName || (item as ConsultationResponse).customer_name || "고객";
+                                        const category = (item as ConsultationResponse).productLineCode || (item as ConsultationResponse).category || "-";
+                                        const raw = item as ConsultationResponse & { firstMessage?: string };
+                                        const preview = raw.summaryText || raw.firstMessage || raw.content_preview || raw.initialMessage || "";
+                                        const status = String((item as ConsultationResponse).statusCode || (item as ConsultationResponse).status || "").toUpperCase();
+                                        return (
+                                            <button
+                                                key={`act-${id ?? idx}`}
+                                                type="button"
+                                                className={styles.activityItem}
+                                                onClick={() => id && navigate(`/history/${id}`)}
+                                            >
+                                                <div style={{ width: '36px', height: '36px', borderRadius: '12px', background: '#FFF0F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <User size={16} color="#E6007E" />
                                                 </div>
-                                                <div style={{ display: "flex", flexDirection: "column", flex: 1, marginLeft: "12px", textAlign: 'left' }}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                                                        <span className={styles.customerName}>{log.customer_name} 고객님</span>
-                                                        <span className={styles.priorityBadge[log.priority as keyof typeof styles.priorityBadge]}>{log.priority}</span>
+                                                <div style={{ flex: 1, minWidth: 0, marginLeft: '14px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                                        <span className={styles.customerName}>{name}</span>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#E6007E', background: '#FFF0F6', padding: '2px 8px', borderRadius: '100px' }}>{category}</span>
                                                     </div>
-                                                    <div style={{ fontSize: "13px", color: "#E6007E", fontWeight: 700, marginBottom: "4px" }}>{log.category} {">"} {log.issue_detail}</div>
-                                                    <div style={{ fontSize: "14px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "40px" }}>{log.content_preview}</div>
+                                                    <p style={{ fontSize: '13px', color: '#888', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {preview ? preview.slice(0, 40) + (preview.length > 40 ? '…' : '') : '내용 없음'}
+                                                    </p>
                                                 </div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "16px" }}>
-                                                    <div className={styles.statusBadge[log.status as keyof typeof styles.statusBadge]}>{log.status === "DONE" ? "처리완료" : "상담중"}</div>
-                                                    <ChevronRight size={18} className={styles.arrowIcon} />
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                                                    <span className={status === 'DONE' ? styles.statusBadge.DONE : status === 'IN_PROGRESS' ? styles.statusBadge.IN_PROGRESS : styles.statusBadge.CANCELED}>
+                                                        {status === 'DONE' ? '완료' : status === 'IN_PROGRESS' ? '진행중' : '취소'}
+                                                    </span>
                                                 </div>
                                             </button>
-                                            <button type="button" onClick={(e) => handleDeleteActivity(e, log.consultation_id)} style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer' }}>
-                                                <X size={12} color="#999" />
-                                            </button>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p style={{ padding: "20px", textAlign: "center", color: "#999" }}>상담 내역이 없습니다.</p>
-                                )}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </section>
                     </div>
 
@@ -436,10 +537,7 @@ const handleAcceptConsultation = useCallback(
                             </div>
                         </section>
                         <section className={styles.glassCard}>
-                            <div className={styles.cardHeader}>
-                                <h3 className={styles.cardTitle}><Megaphone size={18} color="#E6007E" /> 공지사항</h3>
-                                <button onClick={() => navigate('/notice')} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '12px' }}>전체보기</button>
-                            </div>
+                            <div className={styles.cardHeader}><h3 className={styles.cardTitle}><Megaphone size={18} color="#E6007E" /> 공지사항</h3><button onClick={() => navigate('/notice')} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '12px' }}>전체보기</button></div>
                             <div className={styles.noticeList}>
                                 {NOTICES.map((notice) => (
                                     <div key={notice.id} className={styles.noticeItem} onClick={() => setSelectedNotice(notice)} style={{ cursor: 'pointer' }}>
@@ -453,34 +551,14 @@ const handleAcceptConsultation = useCallback(
                 </div>
             </main>
 
-            {selectedNotice && (
-                <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
-                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                            <div className={styles.aiGlowBadge}>NOTICE</div>
-                            <button type="button" onClick={() => setSelectedNotice(null)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
-                                <X size={24} color="#999" />
-                            </button>
-                        </div>
-                        <h2 className={styles.modalHeading}>{selectedNotice.title}</h2>
-                        <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
-                            {selectedNotice.content}
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {isQueueModalOpen && (
                 <div className={styles.modalOverlay} onClick={() => setIsQueueModalOpen(false)}>
                     <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                             <div className={styles.aiGlowBadge}>LIVE QUEUE</div>
-                            <button type="button" onClick={() => setIsQueueModalOpen(false)} style={{ background: "none", border: "none", cursor: 'pointer' }}>
-                                <X size={24} color="#999" />
-                            </button>
+                            <button type="button" onClick={() => setIsQueueModalOpen(false)} style={{ background: "none", border: "none", cursor: 'pointer' }}><X size={24} color="#999" /></button>
                         </div>
                         <h2 className={styles.modalHeading}>실시간 대기 고객 명단</h2>
-                        
                         <div style={{ marginTop: '20px', maxHeight: '360px', overflowY: 'auto' }}>
                             {waitingList.length > 0 ? (
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -494,110 +572,138 @@ const handleAcceptConsultation = useCallback(
                                     </thead>
                                     <tbody>
                                         {waitingList.map((item, index) => {
-    // 1. 타입 가드를 위해 인터페이스를 구체화하여 참조합니다.
-    const consultation = item as ConsultationResponse;
-    const customer = item as CustomerInfo;
-
-    // 2. 백엔드 JSON 구조(customerName, initialMessage)에 맞춰 우선순위 변수 할당
-    // 백엔드에서 주는 '이영희' 데이터를 정확히 가져옵니다.
-    const name = consultation.customerName || consultation.customer_name || customer.name || "이름 없음";
-    const msg = consultation.initialMessage || consultation.content_preview || customer.inquiryMessage || "내용 없음";
-    const id = consultation.consultationId || consultation.consultation_id || customer.id;
-
-    return (
-        <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
-            <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
-            <td style={{ padding: '12px 5px', fontWeight: 600 }}>{name}</td> 
-            <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>
-                {(msg || "").length > 20 ? (msg || "").slice(0, 20) + '...' : msg}
-            </td>
-            <td style={{ padding: '12px 5px', textAlign: 'center' }}>
-                <button 
-                    onClick={() => handleRemoveWaitingCustomer(id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                >
-                    <X size={14} color="#FF4D4F" />
-                </button>
-            </td>
-        </tr>
-    );
-})}
+                                            const consultation = item as ConsultationResponse;
+                                            const info = item as CustomerInfo;
+                                            const id = consultation.consultationId || consultation.consultation_id || info.id;
+                                            return (
+                                                <tr key={`queue-${id}-${index}`} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                                                    <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#E6007E' }}>{index + 1}</td>
+                                                    <td style={{ padding: '12px 5px', fontWeight: 600 }}>{consultation.customerName || consultation.customer_name || info.name || "고객"}</td> 
+                                                    <td style={{ padding: '12px 5px', fontSize: '13px', color: '#555' }}>{(consultation.initialMessage || info.inquiryMessage || "").slice(0, 20)}...</td>
+                                                    <td style={{ padding: '12px 5px', textAlign: 'center' }}><button onClick={() => handleRemoveWaitingCustomer(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}><X size={14} color="#FF4D4F" /></button></td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
-                            ) : (
-                                <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-                                    <Users size={40} style={{ opacity: 0.2, marginBottom: '10px' }} />
-                                    <p>현재 대기 중인 고객이 없습니다.</p>
-                                </div>
-                            )}
+                            ) : (<p style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>현재 대기 중인 고객이 없습니다.</p>)}
                         </div>
                         <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '24px' }} onClick={() => setIsQueueModalOpen(false)}>닫기</button>
                     </div>
                 </div>
             )}
 
-            {/* 새로운 상담 배정 알림 모달 내부 */}
-{assignedCustomer && (() => {
-    // any 없이 타입을 안전하게 세탁 (unknown 활용)
-    const consultation = assignedCustomer as unknown as ConsultationResponse;
-    const customer = assignedCustomer as unknown as CustomerInfo;
-
-    // 필드 우선순위 결정
-    const name = consultation.customerName || consultation.customer_name || customer.name || "이름 없음";
-    const msg = consultation.initialMessage || consultation.content_preview || customer.inquiryMessage || "내용 없음";
-    
-    // recentHistory 접근 시에도 타입 안정성 확보
-    const history = (assignedCustomer as unknown as { recentHistory?: string }).recentHistory || "내역 없음";
-
-    return (
-        <div className={styles.modalOverlay}>
-            <div className={styles.premiumModal}>
-                <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
-                <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
-                <div className={styles.modalCustomerCard}>
-                    <span className={styles.modalCustomerName}>
-                        {name} 고객님
-                    </span>
-                    <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px' }}>
-                        <p className={styles.aiGuideText} style={{ fontWeight: 600 }}>
-                            {msg}
-                        </p>
-                    </div>
-                    <p style={{ fontSize: '13px', color: '#888', marginTop: '10px' }}>
-                        <strong>최근 이력:</strong> {history}
-                    </p>
-                </div>
-                <div className={styles.modalActions}>
-                    <button 
-                        type="button" 
-                        className={styles.primaryBtn} 
-                        onClick={() => handleAcceptConsultation(assignedCustomer)}
-                    >
-                        상담 시작
-                    </button>
-                    <button 
-                        type="button" 
-                        className={styles.secondaryBtn} 
-                        onClick={handleRejectConsultation}
-                    >
-                        거절
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-})()}
-
             {showGuide && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.premiumModal} style={{ maxWidth: "600px" }}>
+                <div className={styles.modalOverlay} onClick={() => setShowGuide(false)}>
+                    <div className={styles.premiumModal} onClick={e => e.stopPropagation()}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                            <div className={styles.aiGlowBadge}>KNOWLEDGE BASE</div>
+                            <div className={styles.aiGlowBadge}>KB</div>
                             <button type="button" onClick={() => setShowGuide(false)} style={{ background: "none", border: "none" }}><X size={24} color="#999" /></button>
                         </div>
                         <h2 className={styles.modalHeading}>실시간 장애 대응 가이드</h2>
                         <div className={styles.aiGuideBox}><p className={styles.aiGuideText}>수도권 지역 IPTV 인증 서버 부하로 인한 접속 지연 발생 중입니다.</p></div>
                         <button type="button" className={styles.primaryBtn} style={{ width: "100%", marginTop: '20px' }} onClick={() => setShowGuide(false)}>내용 확인 완료</button>
+                    </div>
+                </div>
+            )}
+
+            {selectedNotice && (
+                <div className={styles.modalOverlay} onClick={() => setSelectedNotice(null)}>
+                    <div className={styles.premiumModal} style={{ maxWidth: "540px" }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                            <div className={styles.aiGlowBadge}>NOTICE</div>
+                            <button type="button" onClick={() => setSelectedNotice(null)} style={{ background: "none", border: "none", cursor: 'pointer' }}><X size={24} color="#999" /></button>
+                        </div>
+                        <h2 className={styles.modalHeading}>{selectedNotice.title}</h2>
+                        <div style={{ marginTop: '20px', color: '#444', lineHeight: 1.6, fontSize: '15px', whiteSpace: 'pre-wrap' }}>{selectedNotice.content}</div>
+                    </div>
+                </div>
+            )}
+
+            {assignedCustomer && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.premiumModal}>
+                        <div className={styles.aiGlowBadge}>REAL-TIME INQUIRY</div>
+                        <h2 className={styles.modalHeading}>새로운 상담 배정</h2>
+                        
+                        <div className={styles.modalCustomerCard}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <span className={styles.modalCustomerName}>
+                                    {(assignedCustomer as unknown as ConsultationResponse).customerName || (assignedCustomer as unknown as ConsultationResponse).customer_name || (assignedCustomer as CustomerInfo).name || "고객"} 님
+                                </span>
+                                {consultationContext?.customer?.grade && (
+                                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#E6007E', backgroundColor: '#FFF0F6', padding: '4px 8px', borderRadius: '6px' }}>
+                                        {consultationContext.customer.grade}
+                                    </span>
+                                )}
+                            </div>
+
+                            {(() => {
+                                const latestRecent = consultationContext?.recentConsultations
+                                    ?.slice()
+                                    .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())[0];
+                                const tags = [
+                                    latestRecent?.priceSensitivity,
+                                    latestRecent?.decisionStyle,
+                                    latestRecent?.anxietyLevel,
+                                    latestRecent?.sentimentLabel,
+                                ].filter(Boolean);
+                                return tags.length > 0 ? (
+                                    <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                                        {tags.map((tag) => (
+                                            <span key={tag} style={{
+                                                fontSize: '11px',
+                                                padding: '3px 9px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#F3F4F6',
+                                                color: '#4B5563',
+                                                fontWeight: 600,
+                                                border: '1px solid #E5E7EB'
+                                            }}>
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : null;
+                            })()}
+
+                            <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '12px 0' }} />
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                    <span style={{ color: '#6B7280' }}>최근 상담일</span>
+                                    <span style={{ fontWeight: 600, color: '#1A1A1A' }}>
+                                        {consultationContext?.customer?.lastConsultedAt
+                                            ? new Date(consultationContext.customer.lastConsultedAt).toLocaleDateString('ko-KR')
+                                            : '-'}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                    <span style={{ color: '#6B7280' }}>총 상담 수</span>
+                                    <span style={{ fontWeight: 800, color: '#E6007E' }}>
+                                        {consultationContext?.customer?.totalConsultCount ?? '-'}건
+                                    </span>
+                                </div>
+                                {consultationContext?.customer?.age && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                        <span style={{ color: '#6B7280' }}>나이</span>
+                                        <span style={{ fontWeight: 600, color: '#1A1A1A' }}>{consultationContext.customer.age}세</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className={styles.aiGuideBox} style={{ borderLeft: '4px solid #E6007E', marginTop: '12px', backgroundColor: '#F9FAFB' }}>
+                                <p style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '4px', fontWeight: 700 }}>실시간 문의 내용</p>
+                                <p className={styles.aiGuideText} style={{ fontWeight: 600, color: '#1A1A1A' }}>
+                                    "{consultationContext?.initialMessage || (assignedCustomer as unknown as ConsultationResponse).initialMessage || (assignedCustomer as unknown as ConsultationResponse).content_preview || (assignedCustomer as CustomerInfo).inquiryMessage || "상담 요청이 도착했습니다."}"
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className={styles.modalActions} style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                            <button type="button" className={styles.primaryBtn} style={{ flex: 1 }} onClick={() => handleAcceptConsultation(assignedCustomer)}>상담 시작</button>
+                            <button type="button" className={styles.secondaryBtn} style={{ flex: 1 }} onClick={handleRejectConsultation}>거절</button>
+                        </div>
                     </div>
                 </div>
             )}

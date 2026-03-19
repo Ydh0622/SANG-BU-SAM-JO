@@ -21,21 +21,23 @@ export const header = style({
     gap: "20px",
 });
 
+/** ✅ 뒤로가기 버튼: Search 페이지와 동일한 효과 적용 */
 export const backBtn = style({
+    width: "40px",
+    height: "40px",
+    border: "none",
+    background: "#FFF",
+    borderRadius: "12px",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
     display: "flex",
     alignItems: "center",
-    padding: "10px 18px",
-    backgroundColor: "#FFF",
-    border: "1px solid #E2E8F0",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#64748B",
+    justifyContent: "center",
     transition: "all 0.2s ease",
     ":hover": { 
-        backgroundColor: "#F1F5F9",
-        borderColor: "#CBD5E1"
+        backgroundColor: "#F1F3F5",
+        transform: "translateX(-2px)", // 👈 왼쪽으로 2px 이동하는 효과
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
     },
 });
 

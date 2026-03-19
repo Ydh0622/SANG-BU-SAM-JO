@@ -8,10 +8,28 @@ const popIn = keyframes({
     to: { opacity: 1, transform: "translateY(0) scale(1)" },
 });
 
+/**  추가된 로딩 컨테이너 스타일 */
+export const loadingContainer = style({
+    width: "100%",
+    height: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    fontSize: "18px",
+    fontWeight: 700,
+    color: UPLUS_MAGENTA,
+    fontFamily: "Pretendard, system-ui, sans-serif",
+});
+
 export const container = style({
     width: "100%",
     height: "100vh",
-    backgroundColor: "#F3F4F6",
+    background: `
+        radial-gradient(ellipse at 20% 20%, rgba(230,0,126,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(0,122,255,0.04) 0%, transparent 50%),
+        #F3F4F6
+    `,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -23,30 +41,51 @@ export const phoneFrame = style({
     height: "820px",
     backgroundColor: "#F9FAFB",
     borderRadius: "48px",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.10)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    border: "12px solid #1A1A1A",
+    border: "12px solid #111",
     position: "relative",
 });
 
 export const chatHeader = style({
-    padding: "24px",
-    backgroundColor: "#FFF",
-    borderBottom: "1px solid #EEE",
+    padding: "20px 24px",
+    background: "linear-gradient(135deg, #1A1A1A 0%, #2D0018 60%, #3D0022 100%)",
+    borderBottom: "none",
     display: "flex",
     alignItems: "center",
     gap: "16px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+    color: "#FFF",
 });
 
 export const backBtn = style({
-    background: "none",
-    border: "none",
+    background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.15)",
     cursor: "pointer",
-    color: "#666",
+    color: "#FFF",
     display: "flex",
     alignItems: "center",
+    borderRadius: "10px",
+    padding: "6px",
+    transition: "all 0.2s",
+    ":hover": { background: "rgba(255,255,255,0.2)" },
+});
+
+export const homeBtn = style({
+    background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    cursor: "pointer",
+    padding: "8px",
+    color: "#FFF",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "10px",
+    transition: "all 0.2s",
+    ":active": { transform: "scale(0.9)" },
+    ":hover": { background: "rgba(255,255,255,0.2)" },
 });
 
 export const chatArea = style({
@@ -59,31 +98,27 @@ export const chatArea = style({
     backgroundColor: "#F9FAFB",
 });
 
-/** ✨ 세로 꺾임 방지 핵심 스타일 */
 const bubbleBase = style({
     padding: "12px 16px",
     fontSize: "15px",
     lineHeight: "1.5",
-    
-    // 1. 너비 결정 방식 수정
-    width: "fit-content",      // 안의 내용물만큼만 너비를 가짐
-    maxWidth: "80%",           // 최대 너비 제한
-    minWidth: "45px",          // 너무 짧아도 동그란 형태 유지
-    
-    // 2. 줄바꿈 제어 (핵심!)
-    whiteSpace: "pre-wrap",    // 공백과 엔터 유지
-    wordBreak: "keep-all",     // 단어 단위로 줄바꿈 (ㅎㅇ가 쪼개지지 않음)
-    overflowWrap: "anywhere",  // 의미 없는 긴 영문일 경우만 끊기
-    
+    width: "fit-content",
+    maxWidth: "100%",
+    minWidth: "45px",
+    whiteSpace: "pre-wrap",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
     animation: `${popIn} 0.3s ease-out`,
 });
 
-/** 내 메시지 (오른쪽 정렬) */
+/**  내 메시지: 가로 배치 (시간이 왼쪽, 말풍선이 오른쪽) */
 export const myMsgWrapper = style({
     alignSelf: "flex-end", 
     display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end", 
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: "8px",
+    maxWidth: "85%",
 });
 
 export const myBubble = style([bubbleBase, {
@@ -91,14 +126,17 @@ export const myBubble = style([bubbleBase, {
     color: "#FFF",
     borderRadius: "20px 20px 0 20px", 
     boxShadow: "0 4px 10px rgba(230, 0, 126, 0.15)",
+    order: 2,
 }]);
 
-/** 상담사 메시지 (왼쪽 정렬) */
+/**  상담사 메시지: 가로 배치 (말풍선이 왼쪽, 시간이 오른쪽) */
 export const agentMsgWrapper = style({
     alignSelf: "flex-start", 
     display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start", 
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: "8px",
+    maxWidth: "85%",
 });
 
 export const agentBubble = style([bubbleBase, {
@@ -107,13 +145,16 @@ export const agentBubble = style([bubbleBase, {
     borderRadius: "0 20px 20px 20px", 
     border: "1px solid #E5E7EB",
     boxShadow: "0 2px 5px rgba(0, 0, 0, 0.05)",
+    order: 1,
 }]);
 
+/** 시간 스타일 */
 export const timeLabel = style({
     fontSize: "11px",
     color: "#999",
-    marginTop: "4px",
-    padding: "0 4px",
+    marginBottom: "2px",
+    whiteSpace: "nowrap",
+    order: 0,
 });
 
 export const inputArea = style({
@@ -160,7 +201,6 @@ export const sendBtn = style({
     }
 });
 
-// 모달 스타일 (동일)
 export const modalOverlay = style({
     position: "fixed",
     top: 0, left: 0, right: 0, bottom: 0,
@@ -176,10 +216,33 @@ export const modalContent = style({
     backgroundColor: "#FFF",
     padding: "32px",
     borderRadius: "32px",
-    width: "85%",
+    width: "320px",
     textAlign: "center",
     boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
     animation: `${popIn} 0.3s ease-out`,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+});
+
+export const modalConfirmBtn = style({
+    width: "100%",
+    marginTop: "24px",
+    padding: "14px",
+    backgroundColor: UPLUS_MAGENTA,
+    color: "white",
+    border: "none",
+    borderRadius: "16px",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "background-color 0.2s",
+    ":hover": {
+        backgroundColor: "#c5006c",
+    },
+    ":active": {
+        transform: "scale(0.98)",
+    }
 });
 
 export const modalTitle = style({

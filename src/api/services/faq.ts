@@ -1,38 +1,33 @@
-// import { apiStore } from '../client';
-// import type { ConsultationResponse } from '../../types/consultation';
+import axios from "axios";
 
-/**
- * [상부상조] FAQ 관련 API 서비스
- * 명세서 11번: 유사 FAQ 검색 (Bearer 토큰 필수)
- */
+export interface FaqItem {
+  faq_id: string;
+  question: string;
+  answer: string;
+  score: number;
+}
 
-// 유사 FAQ 검색 (Agent용)
-export const getSimilarFaq = async (query: string) => {
+export interface FaqAnalysisResponse {
+  answer: string;
+  retrieved_faqs: FaqItem[];
+}
+
+export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisResponse> => {
   try {
-    // [REAL] 실서버 연결 시 주석 해제
-    // const response = await apiStore.get('/api/v1/search/faq', {
-    //   params: { query } // 고객의 질문 의도를 쿼리 파라미터로 전달
-    // });
-    // return response.data;
-
-    //  [MOCK] 시연용 가짜 데이터 (서버 연결 시 삭제)
-    console.log(`Using Mock Data: getSimilarFaq (${query})`);
-    return [
-      {
-        id: 101,
-        question: "가족 결합 할인 조건이 어떻게 되나요?",
-        answer: "LG유플러스 가족 결합은 모바일 2회선 이상부터 가능하며, 가족 관계 증명서가 필요합니다.",
-        score: 0.95 // 유사도 점수
-      },
-      {
-        id: 102,
-        question: "5G 요금제 변경 시 유의사항",
-        answer: "요금제 변경 시 기존 결합 혜택이 유지되는지 반드시 확인해야 합니다.",
-        score: 0.82
+    // 422 에러 해결을 위한 구조: 
+    // POST 요청이지만 데이터를 Body가 아닌 URL 파라미터(params)로 보냅니다.
+    const response = await axios.post('/fastapi/v1/search/faq', null, {
+      params: {
+        question_text: questionText
       }
-    ];
+    });
+    
+    return response.data;
   } catch (err) {
-    console.error("유사 FAQ 검색 실패:", err);
-    return [];
+    console.error("QA API 연결 실패:", err);
+    return {
+      answer: "분석 데이터를 불러오지 못했습니다.",
+      retrieved_faqs: []
+    };
   }
 };

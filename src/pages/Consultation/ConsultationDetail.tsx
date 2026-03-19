@@ -1,42 +1,31 @@
 import {
-    Clock,
-    Edit3,
-    Eye,
-    EyeOff,
-    Mail,
-    MessageSquare,
-    Phone,
-    Save,
-    Send,
-    Sparkles,
-    Tag,
-    User,
-    Users,
-    Search, 
-    ArrowLeft,
-    AlertCircle,
-    CheckCircle,
-    X,
-    FileDown
-} from "lucide-react";
+    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History, Check
+} from "lucide-react"; 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AxiosError } from "axios"; // [추가] AxiosError 타입 임포트
+import { AxiosError } from "axios";
 
-import { 
-    getConsultationDetail, 
-    sendConsultationMessage, 
-    completeConsultation 
+import {
+    getConsultationDetail,
+    getConsultationContext,
+    sendConsultationMessage,
+    endConsultation
 } from "../../api/services/consultation";
-import { getSimilarFaq } from "../../api/services/faq"; 
+import { getSimilarFaq } from "../../api/services/faq";
 import type { ConsultationResponse } from "../../types/consultation";
 import * as styles from "./Style/Consultation.css.ts";
 
+// --- Types & Interfaces ---
+
 interface ExtendedConsultationResponse extends ConsultationResponse {
     email?: string;
-    initialMessage?: string; 
-    customerName?: string;   
+    initialMessage?: string;
+    customerName?: string;
+}
+
+interface ConsultationDetailResponse {
+    data: ExtendedConsultationResponse;
 }
 
 interface Message {
@@ -51,19 +40,42 @@ interface FaqItem {
     question: string;
     answer: string;
     similarity_score: number;
+    isSelected?: boolean;
 }
 
 interface FaqResponse {
     recommendations: FaqItem[];
 }
 
-interface ConsultationRecord {
-    customer_request: string;
-    agent_action: string;
-    summary_text: string;
-    issue_type_code: string;
-    resolution_code: string;
+interface RecentHistory {
+    date: string;
+    category: string;
+    summary: string;
+    sentimentLabel: string | null;
+    anxietyLevel: string | null;
+    priceSensitivity: string | null;
+    decisionStyle: string | null;
 }
+
+interface TendencyInfo {
+    priceSensitivity: string | null;
+    decisionStyle: string | null;
+    anxietyLevel: string | null;
+    sentimentLabel: string | null;
+}
+
+interface CustomerContext {
+    name: string | null;
+    grade: string | null;
+    gender: string | null;
+    age: number | null;
+    totalConsultCount: number | null;
+    lastConsultedAt: string | null;
+    phoneMask: string | null;
+    emailMask: string | null;
+}
+
+// --- Component ---
 
 const ConsultationDetail: React.FC = () => {
     const { customerId } = useParams<{ customerId: string }>();
@@ -73,32 +85,26 @@ const ConsultationDetail: React.FC = () => {
     const [isPhoneVisible, setIsPhoneVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [customerInfo, setCustomerInfo] = useState<ExtendedConsultationResponse | null>(null);
-    const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]); 
+    const [similarFaqs, setSimilarFaqs] = useState<FaqItem[]>([]);
+    
+    const [recentHistories, setRecentHistories] = useState<RecentHistory[]>([]);
+    const [tendencyInfo, setTendencyInfo] = useState<TendencyInfo | null>(null);
+    const [customerCtx, setCustomerCtx] = useState<CustomerContext | null>(null);
+    const [faqAiAnswer, setFaqAiAnswer] = useState<string | null>(null);
+    const [faqAiAnswerLiked, setFaqAiAnswerLiked] = useState<boolean | null>(null);
 
-    const [isTyping, setIsTyping] = useState(false);
+    const [isTyping] = useState(false);
     const [consultationTime, setConsultationTime] = useState(0);
-    const [showExitModal, setShowExitModal] = useState(false);
+    const [showExitModal, setShowExitModal] =   useState(false);
+    const [finalResultCode, setFinalResultCode] = useState<string>("DONE");
 
-    const [waitingCount, setWaitingCount] = useState<number>(() => {
+    const [waitingCount] = useState<number>(() => {
         const count = localStorage.getItem("realtime_waiting_count") || localStorage.getItem("dashboard_waiting_count");
         return count ? Number(count) : 0;
     });
 
-    const [record, setRecord] = useState<ConsultationRecord>({
-        customer_request: "요금제 변경 및 가족 결합 할인 적용 요청",
-        agent_action: "본인 확인 후 결합 해지 사유 설명 및 재결합 안내",
-        summary_text: "고객이 기존 결합 해지 후 재결합 과정에서 발생한 위약금 소급 적용을 요청함. 가이드에 따라 처리 완료함.", 
-        issue_type_code: "BILL_INQUIRY",
-        resolution_code: "DONE",
-    });
-
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
-
-    useEffect(() => {
-        const timer = setInterval(() => setConsultationTime(prev => prev + 1), 1000);
-        return () => clearInterval(timer);
-    }, []);
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -109,21 +115,25 @@ const ConsultationDetail: React.FC = () => {
     const fetchSimilarFaqs = useCallback(async (text: string) => {
         if (!text || !text.trim()) return;
         try {
-            const response = await getSimilarFaq(text) as unknown as FaqResponse | FaqItem[];
-            const faqs = Array.isArray(response) ? response : response?.recommendations || [];
-            setSimilarFaqs(faqs);
-        } catch (error) { 
-            console.error("FAQ 로드 실패:", error); 
+            const response = await getSimilarFaq(text);
+            const data = response as unknown as FaqResponse | FaqItem[];
+            const faqs = Array.isArray(data) ? data : data?.recommendations || [];
+            setSimilarFaqs(faqs.map((f, idx) => ({ 
+                ...f, 
+                faq_id: f.faq_id || `faq-${idx}-${Date.now()}`,
+                isSelected: undefined 
+            })));
+        } catch (error) {
+            console.error("FAQ 로드 실패:", error);
         }
     }, []);
 
     const handleSaveAndExportFile = useCallback(() => {
         if (messages.length === 0) return;
         try {
-            const customerName = customerInfo?.customer_name || "Unknown";
-            const title = `=== LG U+ 상담 기록 (고객: ${customerName}) ===\n`;
+            const customerName = customerCtx?.name || customerInfo?.customer_name || "Unknown";
             const chatLogs = messages.map(m => `[${m.time}] ${m.sender.toUpperCase()}: ${m.text}`).join('\n');
-            const blob = new Blob([title + chatLogs], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([`=== LG U+ 상담 기록 (고객: ${customerName}) ===\n${chatLogs}`], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -132,20 +142,23 @@ const ConsultationDetail: React.FC = () => {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
-        } catch (error) { 
-            console.error("파일 다운로드 실패:", error); 
+        } catch (error) {
+            console.error("파일 다운로드 실패:", error);
         }
-    }, [messages, customerInfo]);
+    }, [messages, customerInfo, customerCtx?.name]);
 
     useEffect(() => {
-        const loadDetail = async () => {
-            if (!customerId) return;
-            let actualData: ExtendedConsultationResponse | null = null;
+        let active = true;
 
+        const loadDetailAndAssign = async () => {
+            if (!customerId) return;
             try {
                 setIsLoading(true);
-                const response = await getConsultationDetail(customerId) as { data?: ExtendedConsultationResponse } | ExtendedConsultationResponse;
-                actualData = ('data' in response && response.data) ? response.data : (response as ExtendedConsultationResponse);
+                const response = await getConsultationDetail(customerId);
+                if (!active) return;
+
+                const resObj = response as unknown as ConsultationDetailResponse;
+                const actualData = (resObj && resObj.data) ? resObj.data : (response as unknown as ExtendedConsultationResponse);
 
                 const storedCustomer = localStorage.getItem("currentCustomer");
                 const customerData = storedCustomer ? JSON.parse(storedCustomer) : null;
@@ -156,135 +169,205 @@ const ConsultationDetail: React.FC = () => {
                     contact_info: customerData?.phone || actualData.contact_info || "010-0000-0000",
                     email: customerData?.email || "vip_care@uplus.co.kr"
                 });
-            } catch (error) {
-                console.warn("데이터 로드 실패, 로컬 데이터 확인", error);
-                const localHistoryRaw = localStorage.getItem("consultationHistory");
-                if (localHistoryRaw) {
-                    const localHistory: ConsultationResponse[] = JSON.parse(localHistoryRaw);
-                    const fallbackData = localHistory.find(item => String(item.consultation_id) === String(customerId));
-                    if (fallbackData) {
-                        const extendedFallback = fallbackData as ExtendedConsultationResponse;
-                        setCustomerInfo(extendedFallback);
-                        actualData = extendedFallback;
-                    } else navigate("/dashboard");
-                } else {
-                    navigate("/dashboard");
-                }
-            } finally {
-                const savedCount = localStorage.getItem("realtime_waiting_count");
-                if (savedCount) setWaitingCount(Number(savedCount));
 
                 const lastInquiryRaw = localStorage.getItem("lastInquiry");
-                let firstMsgText = "상담 신청합니다.";
-
+                let firstMsgText = actualData.initialMessage || "상담 신청합니다.";
                 if (lastInquiryRaw) {
                     const parsed = JSON.parse(lastInquiryRaw);
-                    if (parsed.message && parsed.message.trim() !== "") {
-                        firstMsgText = parsed.message;
-                    }
-                } else if (actualData?.initialMessage) {
-                    firstMsgText = actualData.initialMessage;
+                    if (parsed.message?.trim()) firstMsgText = parsed.message;
                 }
 
-                setMessages([{ 
-                    id: Date.now(), 
-                    sender: "customer", 
-                    text: firstMsgText, 
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                setMessages([{
+                    id: Date.now(),
+                    sender: "customer",
+                    text: firstMsgText,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }]);
-                
-                fetchSimilarFaqs(firstMsgText);
+
+                // 컨텍스트 캐시 조회 (최근 상담 + 성향)
+                try {
+                    const ctx = await getConsultationContext(customerId) as { data?: Record<string, unknown> } & Record<string, unknown>;
+                    const ctxData = (ctx?.data ?? ctx) as {
+                        customer?: {
+                            name?: string; grade?: string; gender?: string; age?: number;
+                            totalConsultCount?: number; lastConsultedAt?: string;
+                            phoneMask?: string; emailMask?: string;
+                        };
+                        recentConsultations?: {
+                            endedAt?: string; productLineCode?: string; summaryText?: string;
+                            sentimentLabel?: string; anxietyLevel?: string;
+                            priceSensitivity?: string; decisionStyle?: string;
+                        }[];
+                        faqList?: {
+                            kbId?: number; productLineCode?: string;
+                            request?: string; answer?: string;
+                            customerLiked?: boolean | null;
+                        }[];
+                        faqAiAnswer?: string | null;
+                        faqAiAnswerLiked?: boolean | null;
+                    };
+
+                    if (ctxData?.faqAiAnswer) {
+                        setFaqAiAnswer(ctxData.faqAiAnswer);
+                    }
+                    if (ctxData?.faqAiAnswerLiked !== undefined) {
+                        setFaqAiAnswerLiked(ctxData.faqAiAnswerLiked ?? null);
+                    }
+
+                    if (ctxData?.faqList && ctxData.faqList.length > 0) {
+                        setSimilarFaqs(ctxData.faqList.map((f: typeof ctxData.faqList[0] & { customerLiked?: boolean | null }, idx: number) => ({
+                            faq_id: f.kbId ? String(f.kbId) : `faq-${idx}`,
+                            question: f.request ?? "-",
+                            answer: f.answer ?? "-",
+                            similarity_score: 0,
+                            isSelected: f.customerLiked === true ? true : f.customerLiked === false ? false : undefined,
+                        })));
+                    }
+
+                    if (ctxData?.customer) {
+                        const c = ctxData.customer;
+                        setCustomerCtx({
+                            name: c.name ?? null,
+                            grade: c.grade ?? null,
+                            gender: c.gender ?? null,
+                            age: c.age ?? null,
+                            totalConsultCount: c.totalConsultCount ?? null,
+                            lastConsultedAt: c.lastConsultedAt ?? null,
+                            phoneMask: c.phoneMask ?? null,
+                            emailMask: c.emailMask ?? null,
+                        });
+                    }
+
+                    if (ctxData?.recentConsultations) {
+                        setRecentHistories(ctxData.recentConsultations.map((r) => {
+                            const d = r.endedAt ? new Date(r.endedAt) : null;
+                            const date = d
+                                ? `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+                                : "-";
+                            return {
+                                date,
+                                category: r.productLineCode ?? "-",
+                                summary: r.summaryText ?? "-",
+                                sentimentLabel: r.sentimentLabel ?? null,
+                                anxietyLevel: r.anxietyLevel ?? null,
+                                priceSensitivity: r.priceSensitivity ?? null,
+                                decisionStyle: r.decisionStyle ?? null,
+                            };
+                        }));
+
+                        const latest = ctxData.recentConsultations[0];
+                        if (latest) {
+                            setTendencyInfo({
+                                priceSensitivity: latest.priceSensitivity ?? null,
+                                decisionStyle: latest.decisionStyle ?? null,
+                                anxietyLevel: latest.anxietyLevel ?? null,
+                                sentimentLabel: latest.sentimentLabel ?? null,
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn("컨텍스트 로드 실패:", e);
+                }
+            } catch (error) {
+                console.error("데이터 로드 실패:", error);
+                navigate("/dashboard");
+            } finally {
                 setIsLoading(false);
             }
         };
-        loadDetail();
+        loadDetailAndAssign();
+        return () => { active = false; };
     }, [customerId, fetchSimilarFaqs, navigate]);
 
     const handleSend = useCallback(async () => {
-        if (!inputValue.trim() || !customerId) return;
-        
-        const textToSend = inputValue;
-        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const messageId = Date.now();
-        
-        setInputValue("");
-        setMessages((prev) => [...prev, { id: messageId, sender: "agent", text: textToSend, time: now }]);
-
-        try {
-            await sendConsultationMessage(customerId, textToSend);
-            setIsTyping(true);
-            setTimeout(() => setIsTyping(false), 1500);
-        } catch (error) {
-            console.warn("메시지 서버 전송 실패:", error);
-        }
-    }, [inputValue, customerId]);
+    if (!inputValue.trim() || !customerId) return;
+    
+    const textToSend = inputValue;
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const newMessage: Message = { id: Date.now(), sender: "agent", text: textToSend, time: now };
+    
+    setInputValue("");
+    setMessages((prev) => [...prev, newMessage]);
+    localStorage.setItem("agentMessage", JSON.stringify(newMessage));
+    
+    try {
+       
+        await sendConsultationMessage(customerId, textToSend, "AGENT");
+    } catch (error) {
+        console.warn("API 전송 실패:", error);
+    }
+}, [inputValue, customerId]);
 
     const handleFinalComplete = async () => {
-        if (!customerId) return;
+        if (!customerId || (!customerInfo && !customerCtx)) return;
+        
         try {
-            // [해결] 백엔드 신규 명세 DTO와 필드명 명시적 매핑
+            setShowExitModal(false);
+            setIsLoading(true);
+
+            const fullChatLog = messages
+                .map(m => `[${m.time}] ${m.sender === 'customer' ? '고객' : '상담사'}: ${m.text}`)
+                .join('\n');
+
             const payload = {
-                customer_request: record.customer_request || "요금제 변경 및 서비스 문의",
-                agent_action: record.agent_action || "상담 완료 안내",
-                summary_text: record.summary_text || "내용 요약 없음",
-                issue_type_code: record.issue_type_code || "GENERAL",
-                resolution_code: record.resolution_code || "DONE"
+                finalResultCode: finalResultCode,
+                customerName: customerCtx?.name || customerInfo?.customer_name,
+                consultationContent: fullChatLog 
             };
 
-            await completeConsultation(customerId, payload); 
+            await endConsultation(customerId, payload);
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const existingHistoryRaw = localStorage.getItem("consultationHistory");
-            const existingHistory: ConsultationResponse[] = existingHistoryRaw ? JSON.parse(existingHistoryRaw) : [];
-            
-            const newDoneEntry: ConsultationResponse = {
-                consultation_id: Number(customerId) || Date.now(), 
-                customer_name: customerInfo?.customer_name || "알 수 없는 고객",
-                contact_info: customerInfo?.contact_info || "정보 없음",
-                category: "채팅상담", 
-                issue_detail: record.issue_type_code === "BILL_INQUIRY" ? "요금/결합 할인" : "일반 문의",
-                content_preview: record.summary_text,
-                status: "DONE",
-                priority: customerInfo?.priority || "MID", 
-                channel_type: "CHAT",
-                created_at: new Date().toISOString()
-            };
+            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count", "customerInquiry", "recentConsultations"].forEach(k => localStorage.removeItem(k));
+            navigate("/search", { replace: true });
 
-            localStorage.setItem("consultationHistory", JSON.stringify([newDoneEntry, ...existingHistory]));
-            
-            ["lastInquiry", "isMatched", "currentCustomer", "assignedCustomer", "realtime_waiting_count"].forEach(k => localStorage.removeItem(k));
-            
-            alert("상담 내역이 저장되었습니다.");
-            navigate("/dashboard"); 
-        } catch (err) { 
-            // [해결] Unexpected any 경고 해결: AxiosError 타입 캐스팅
+        } catch (err) {
+            setIsLoading(false);
             const error = err as AxiosError<{ message?: string }>;
-            console.error("종료 처리 실패:", error); 
-
-            if (error.response?.data) {
-                console.error("서버 응답 상세 (400 에러 원인):", error.response.data);
-                const serverMsg = error.response.data.message || "입력 형식을 확인해주세요.";
-                alert(`저장 실패: ${serverMsg}`);
-            } else {
-                alert("상담 종료 처리 중 오류가 발생했습니다.");
-            }
+            alert(`저장 실패: ${error.response?.data?.message || "입력 형식을 확인해주세요."}`);
         }
     };
+
+    useEffect(() => {
+        const handleCustomerChat = (e: StorageEvent) => {
+            if (e.key === "customerMessage" && e.newValue) {
+                const data = JSON.parse(e.newValue);
+                setMessages(prev => {
+                    if (prev.some(msg => msg.id === data.id)) return prev;
+                    return [...prev, {
+                        id: data.id,
+                        sender: 'customer',
+                        text: data.text,
+                        time: data.time
+                    }];
+                });
+
+            }
+        };
+        window.addEventListener("storage", handleCustomerChat);
+        return () => window.removeEventListener("storage", handleCustomerChat);
+    }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => setConsultationTime(prev => prev + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages, isTyping]);
 
-    if (isLoading) return <div className={styles.loadingContainer}>상담 정보를 불러오는 중입니다...</div>;
+    if (isLoading) return <div className={styles.loadingContainer}>처리 중입니다...</div>;
 
     return (
         <div className={styles.container}>
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
                     <button type="button" onClick={() => navigate('/dashboard')} className={styles.backBtn}>
-                        <ArrowLeft size={24} color="#666" />
+                        <ArrowLeft size={20} />
                     </button>
                     <div className={styles.statusDot} />
-                    <h1 className={styles.title}>실시간 상담: {customerInfo?.customer_name}</h1>
+                    <h1 className={styles.title}>실시간 상담: {customerCtx?.name ?? customerInfo?.customer_name}</h1>
                     <section className={styles.timer}><Clock size={16} /> {formatTime(consultationTime)}</section>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -298,44 +381,75 @@ const ConsultationDetail: React.FC = () => {
             </header>
 
             <div className={styles.mainLayout}>
-                <aside className={styles.sideSection}>
+                <aside className={styles.sideSection} style={{ flex: '0 0 350px' }}>
                     <article className={styles.card}>
                         <div className={styles.cardHeader}>
                             <h3 className={styles.cardTitle}>고객 정보</h3>
-                            <span className={styles.badgeVIP}>VIP Platinum</span>
+                            {customerCtx?.grade && (
+                                <span className={styles.badgeVIP}>{customerCtx.grade}</span>
+                            )}
                         </div>
-                        <div className={styles.avatar} style={{ margin: "0 auto 16px" }}><User size={40} color="#E6007E" /></div>
+                        <div className={styles.avatar} style={{ margin: "0 auto 16px" }}>
+  <User size={40} color="#E6007E" />
+</div>
                         <div style={{ textAlign: "center", marginBottom: "16px" }}>
-                            <strong>{customerInfo?.customer_name}</strong>
-                            <p style={{ color: "#E6007E", fontWeight: 800, fontSize: "12px" }}>LG U+ 최우수 고객</p>
+                            <strong>{customerCtx?.name ?? customerInfo?.customer_name}</strong>
+                            {customerCtx?.age && customerCtx?.gender && (
+                                <p style={{ color: "#666", fontSize: "12px", margin: "2px 0 0" }}>
+                                    {customerCtx.gender === 'MALE' ? '남' : '여'} · {customerCtx.age}세
+                                </p>
+                            )}
+                            {customerCtx?.totalConsultCount != null && (
+                                <p style={{ color: "#E6007E", fontWeight: 800, fontSize: "12px", margin: "4px 0 0" }}>
+                                    누적 상담 {customerCtx.totalConsultCount}회
+                                </p>
+                            )}
                         </div>
                         <div className={styles.infoItem}>
                             <Phone size={16} color="#666" />
-                            <span>{isPhoneVisible ? (customerInfo?.contact_info) : "010-****-****"}</span>
+                            <span>{isPhoneVisible ? (customerInfo?.contact_info ?? customerCtx?.phoneMask) : (customerCtx?.phoneMask ?? "010-****-****")}</span>
                             <button type="button" onClick={() => setIsPhoneVisible(!isPhoneVisible)} style={{ marginLeft: "auto", background: 'none', border: 'none', cursor: 'pointer' }}>
                                 {isPhoneVisible ? <EyeOff size={14} color="#999" /> : <Eye size={14} color="#E6007E" />}
                             </button>
                         </div>
                         <div className={styles.infoItem}>
                             <Mail size={16} color="#666" />
-                            <span style={{ fontSize: "13px" }}>{customerInfo?.email}</span>
+                            <span style={{ fontSize: "13px" }}>{customerCtx?.emailMask ?? customerInfo?.email}</span>
                         </div>
                     </article>
 
                     <article className={styles.card}>
-                        <h3 className={styles.cardTitle}><Edit3 size={18} color="#E6007E" /> AI 실시간 요약</h3>
-                        <textarea
-                            className={styles.memoArea}
-                            value={record.summary_text}
-                            onChange={(e) => setRecord({ ...record, summary_text: e.target.value })}
-                        />
-                        <div className={styles.aiGlowText}>
-                           <Sparkles size={12} color="#E6007E" /> 실시간 상담 문맥 분석 및 기록 중
-                        </div>
+                        <h3 className={styles.cardTitle}><Sparkles size={18} color="#E6007E" /> 고객 성향 분석</h3>
+                        {tendencyInfo ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {tendencyInfo.priceSensitivity && (
+                                    <span style={{ backgroundColor: '#FFF0F6', color: '#E6007E', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                                        #가격민감도_{tendencyInfo.priceSensitivity}
+                                    </span>
+                                )}
+                                {tendencyInfo.decisionStyle && (
+                                    <span style={{ backgroundColor: '#F0F7FF', color: '#0056B3', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                                        #결정스타일_{tendencyInfo.decisionStyle}
+                                    </span>
+                                )}
+                                {tendencyInfo.anxietyLevel && (
+                                    <span style={{ backgroundColor: '#FFFBE6', color: '#D46B08', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                                        #불안수준_{tendencyInfo.anxietyLevel}
+                                    </span>
+                                )}
+                                {tendencyInfo.sentimentLabel && (
+                                    <span style={{ backgroundColor: '#F6FFED', color: '#389E0D', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                                        #감정_{tendencyInfo.sentimentLabel}
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>성향 데이터가 없습니다.</p>
+                        )}
                     </article>
                 </aside>
 
-                <section className={styles.chatSection}>
+                <section className={styles.chatSection} style={{ flex: '1' }}>
                     <div className={styles.messageList} ref={scrollRef}>
                         {messages.map((msg) => (
                             <div key={msg.id} className={msg.sender === "customer" ? styles.customerMsg : styles.agentMsg}>
@@ -364,10 +478,14 @@ const ConsultationDetail: React.FC = () => {
                         </div>
                         <div className={styles.inputArea}>
                             <input
-                                className={styles.input} 
+                                className={styles.input}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                                onKeyDown={(e) => {
+                                  
+                                    if (e.nativeEvent.isComposing) return;
+                                    if (e.key === "Enter") handleSend();
+                                }}
                                 placeholder="메시지 입력..."
                             />
                             <button type="button" className={styles.sendBtn} onClick={handleSend} disabled={!inputValue.trim()}><Send size={20} /></button>
@@ -375,20 +493,127 @@ const ConsultationDetail: React.FC = () => {
                     </footer>
                 </section>
 
-                <aside className={styles.sideSection}>
+                <aside className={styles.sideSection} style={{ flex: '0 0 380px' }}>
                     <article className={styles.statCard}>
                         <h3 className={styles.cardTitle}><Users size={20} color="#E6007E" /> 실시간 대기</h3>
                         <div className={styles.waitNumber}><strong>{waitingCount}</strong> <span>명</span></div>
                     </article>
+
                     <article className={styles.card}>
-                        <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 유사 FAQ 추천</h3>
+                        <h3 className={styles.cardTitle}><Search size={18} color="#E6007E" /> 사전 FAQ 결과</h3>
+                        {faqAiAnswer && (
+                            <div style={{
+                                backgroundColor: '#F0F7FF',
+                                border: '1px solid #BAD7F2',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginBottom: '12px',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <p style={{ fontSize: '11px', fontWeight: 700, color: '#0056B3', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Sparkles size={12} /> AI 종합 답변
+                                </p>
+                                {faqAiAnswerLiked !== null && (
+                                    <div style={{
+                                        width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        backgroundColor: faqAiAnswerLiked === true ? '#52c41a' : '#ff4d4f',
+                                    }}>
+                                        {faqAiAnswerLiked === true
+                                            ? <Check size={13} color="#fff" strokeWidth={3} />
+                                            : <X size={13} color="#fff" strokeWidth={3} />}
+                                    </div>
+                                )}
+                            </div>
+                                <p style={{ fontSize: '13px', color: '#333', margin: 0, lineHeight: '1.6', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                    {faqAiAnswer}
+                                </p>
+                            </div>
+                        )}
                         <div className={styles.faqWrapper}>
-                            {similarFaqs.length > 0 ? similarFaqs.map((faq, index) => (
-                                <div key={`faq-${faq.faq_id || index}`} className={styles.faqItem}>
-                                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>Q. {faq.question}</p>
-                                    <button className={styles.faqCopyBtn} onClick={() => setInputValue(faq.answer)}>내용 복사</button>
+                            {similarFaqs.length > 0 ? similarFaqs.map((faq) => (
+                                <div key={faq.faq_id}
+                                     className={styles.faqItem}
+                                     style={{
+                                         position: 'relative',
+                                         padding: '16px',
+                                         borderBottom: '1px solid #f0f0f0',
+                                         backgroundColor: faq.isSelected === true ? '#F0F7FF' : faq.isSelected === false ? '#FFF1F0' : 'transparent',
+                                     }}>
+
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '12px',
+                                        right: '12px',
+                                        width: '24px', height: '24px', borderRadius: '6px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        backgroundColor: faq.isSelected === true ? '#52c41a' : faq.isSelected === false ? '#ff4d4f' : '#f0f0f0',
+                                    }}>
+                                        {faq.isSelected === true && <Check size={14} color="#fff" strokeWidth={3} />}
+                                        {faq.isSelected === false && <X size={14} color="#fff" strokeWidth={3} />}
+                                    </div>
+
+                                    <div style={{ paddingRight: '40px' }}>
+                                        <p style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>{faq.question}</p>
+                                        <p style={{ fontSize: '13px', color: '#666', margin: 0, lineHeight: '1.5' }}>{faq.answer}</p>
+                                    </div>
                                 </div>
-                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>추천 FAQ가 없습니다.</p>}
+                            )) : <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', padding: '20px' }}>고객이 사전 FAQ를 확인하지 않았습니다.</p>}
+                        </div>
+                    </article>
+
+                    <article className={styles.card} style={{ marginTop: '16px' }}>
+                        <h3 className={styles.cardTitle}><History size={18} color="#E6007E" style={{ marginRight: '6px' }} /> 최근 상담 내역</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                            {recentHistories.map((item, idx) => (
+                                <div key={`history-${idx}`} style={{
+                                    padding: '10px', backgroundColor: '#F7F8F9', borderRadius: '10px', border: '1px solid #EDEDED'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span style={{ fontSize: '11px', color: '#999' }}>{item.date}</span>
+                                        <span style={{ fontSize: '11px', color: '#E6007E', fontWeight: 700 }}>{item.category}</span>
+                                    </div>
+                                    <p style={{ fontSize: '12px', color: '#444', margin: '0 0 6px', lineHeight: '1.4' }}>{item.summary}</p>
+                                    {(item.sentimentLabel || item.anxietyLevel || item.priceSensitivity || item.decisionStyle) && (
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                            {item.sentimentLabel && (
+                                                <span style={{
+                                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                                                    backgroundColor: item.sentimentLabel === 'POSITIVE' ? '#F6FFED' : item.sentimentLabel === 'NEGATIVE' ? '#FFF1F0' : '#F5F5F5',
+                                                    color: item.sentimentLabel === 'POSITIVE' ? '#389E0D' : item.sentimentLabel === 'NEGATIVE' ? '#CF1322' : '#888',
+                                                }}>
+                                                    {item.sentimentLabel === 'POSITIVE' ? '😊 긍정' : item.sentimentLabel === 'NEGATIVE' ? '😠 부정' : '😐 중립'}
+                                                </span>
+                                            )}
+                                            {item.anxietyLevel && (
+                                                <span style={{
+                                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                                                    backgroundColor: item.anxietyLevel === 'HIGH' ? '#FFF7E6' : '#F5F5F5',
+                                                    color: item.anxietyLevel === 'HIGH' ? '#D46B08' : '#888',
+                                                }}>
+                                                    불안 {item.anxietyLevel}
+                                                </span>
+                                            )}
+                                            {item.priceSensitivity && (
+                                                <span style={{
+                                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                                                    backgroundColor: '#FFF0F6', color: '#E6007E',
+                                                }}>
+                                                    가격 {item.priceSensitivity}
+                                                </span>
+                                            )}
+                                            {item.decisionStyle && (
+                                                <span style={{
+                                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                                                    backgroundColor: '#F0F7FF', color: '#0056B3',
+                                                }}>
+                                                    {item.decisionStyle === 'CAUTIOUS' ? '신중형' : item.decisionStyle === 'IMPULSIVE' ? '즉흥형' : '정보탐색형'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </article>
                 </aside>
@@ -405,9 +630,18 @@ const ConsultationDetail: React.FC = () => {
                             <button onClick={() => setShowExitModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} color="#666" /></button>
                         </div>
                         <div className={styles.modalBody}>
-                            <div className={styles.fieldGroup}>
-                                <label><Edit3 size={14} /> AI 최종 상담 요약</label>
-                                <textarea value={record.summary_text} onChange={(e) => setRecord({...record, summary_text: e.target.value})} />
+                            <div className={styles.fieldGroup} style={{ marginBottom: '20px' }}>
+                                <label><Tag size={14} /> 상담 결과 분류</label>
+                                <select 
+                                    value={finalResultCode} 
+                                    onChange={(e) => setFinalResultCode(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '8px' }}
+                                >
+                                    <option value="DONE">처리 완료</option>
+                                    <option value="TRANSFERRED">부서 이관</option>
+                                    <option value="FOLLOW_UP">추후 재통화</option>
+                                    <option value="PENDING">기록 대기</option>
+                                </select>
                             </div>
                         </div>
                         <div className={styles.modalFooter}>

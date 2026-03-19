@@ -9,18 +9,27 @@ import axios from "axios";
 
 import * as styles from "./Style/Login.css.ts";
 
+/** 백엔드 응답 인터페이스 보강 */
 interface BackendLoginResponse {
   token?: string;
   accessToken?: string;
-  user: { name: string };
+  refreshToken?: string; 
+  user?: { 
+    id?: number | string; 
+    name: string; 
+  };
   data?: {
     token?: string;
     accessToken?: string;
-    user?: { name: string };
+    refreshToken?: string; 
+    user?: { id?: number | string; name: string };
+    agentId?: number | string;
   };
 }
 
+/** 내 정보 조회 응답 인터페이스 */
 interface UserInfo {
+  id?: number | string; 
   name: string;
   email: string;
 }
@@ -38,25 +47,40 @@ const LoginPage: React.FC = () => {
 
       try {
         setIsLoggingIn(true);
-        const response = (await authApi.loginWithGoogle(idToken)) as BackendLoginResponse;
+        
+        const rawResponse = await authApi.loginWithGoogle(idToken);
+        const response = (rawResponse as unknown) as BackendLoginResponse;
 
+        // 토큰 추출 로직
         const token = response.token || response.accessToken || response.data?.token || response.data?.accessToken;
+        //  리프레시 토큰 추출 추가
+        const refreshToken = response.refreshToken || response.data?.refreshToken;
         
         if (!token) throw new Error("서버 응답에 토큰이 없습니다.");
 
+        //  로컬 스토리지 저장 (리프레시 토큰 포함)
         localStorage.setItem("token", token);
+        if (refreshToken) {
+          localStorage.setItem("refreshToken", refreshToken);
+        }
 
         try {
           console.log("📍 [LoginPage] 내 정보 조회(users/me) 시도...");
-          const userInfo = (await authApi.getMe()) as unknown as UserInfo;
+          const rawUserInfo = await authApi.getMe();
+          const userInfo = (rawUserInfo as unknown) as UserInfo;
           
           const realName = userInfo?.name || response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", realName);
-          console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName}`);
+
+          const realUserId = userInfo?.userId || response.user?.id || response.data?.user?.id || response.data?.agentId || "1";
+          localStorage.setItem("userId", String(realUserId));
+
+          console.log(`✅ [LoginPage] 유저 정보 연동 성공: ${realName} (ID: ${realUserId})`);
         } catch (userError) {
           console.error(" [LoginPage] 내 정보 조회 실패, 기본 정보 사용:", userError);
           const backupName = response.user?.name || response.data?.user?.name || "상담원";
           localStorage.setItem("userName", backupName);
+          localStorage.setItem("userId", "1"); 
         }
         
         navigate("/dashboard", { replace: true });
@@ -78,8 +102,7 @@ const LoginPage: React.FC = () => {
     <div className={styles.container}>
       <main className={styles.loginCard}>
         <h1 className={styles.title}>
-          <span className={styles.titleBrand}>LG U<span className={styles.titlePlus}>+</span></span>
-          <div style={{ marginTop: "4px" }}>상담 서비스</div>
+          <span className={styles.titleBrand}>LG U<span className={styles.titlePlus}>+</span> 프리톡</span>
         </h1>
 
         <p className={styles.description}>고객님의 궁금한 점을 빠르고 정확하게 해결해 드립니다.</p>
@@ -99,7 +122,7 @@ const LoginPage: React.FC = () => {
             </div>
           ) : (
             <div style={{ padding: '10px', color: '#E6007E', fontWeight: 600 }}>
-              인증 정보를 확인 중입니다...
+               인증 정보를 확인 중입니다...
             </div>
           )}
         </div>

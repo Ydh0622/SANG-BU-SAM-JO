@@ -61,14 +61,14 @@ const MyPage = () => {
         };
     });
 
-    /** 공통 입력창 스타일 (폰트 색상 진하게 보정 및 배경색 설정) */
+    /** 공통 입력창 스타일 */
     const commonInputStyle = {
         width: '100%',
         padding: '12px 14px',
         fontSize: '15px',
         fontWeight: 600,
-        color: '#1A1A1A', // 글자가 흰색으로 보이는 현상 방지
-        backgroundColor: '#F9FAFB', // 입력 영역 시인성 확보
+        color: '#1A1A1A',
+        backgroundColor: '#F9FAFB',
         border: '1px solid #E5E7EB',
         borderRadius: '8px',
         outline: 'none',
@@ -91,63 +91,30 @@ const MyPage = () => {
         setDisplayMemos([]);
     };
 
-    /** 변경된 모든 프로필 정보 저장 */
     const handleSaveProfile = () => {
         const pureName = profile.name.trim();
         if (!pureName) return alert("이름을 입력해주세요.");
-
         const fullName = `${pureName} 상담사`; 
-        
-        // 로컬스토리지에 항목별로 저장
         localStorage.setItem("userName", fullName);
         localStorage.setItem("userEmail", profile.email);
         localStorage.setItem("userDept", profile.dept);
         localStorage.setItem("userRank", profile.rank);
-        
         alert("프로필 정보가 저장되었습니다.");
     };
 
     return (
         <div className={styles.container}>
-            {/* 1. 상단 헤더: 덕현님이 설정하신 위치(paddingLeft 24px) 그대로 유지 */}
-            <header style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "flex-start", 
-                gap: "16px", 
-                marginBottom: "32px",
-                width: "100%", 
-                paddingLeft: "24px" 
-            }}>
+            {/* ✅ 헤더 영역: 인라인 스타일을 제거하고 CSS 파일의 styles.header를 최대한 활용하거나 깔끔하게 정리 */}
+            <header className={styles.header}>
+                {/* ✅ 수정된 부분: Search 페이지와 동일한 버튼 구조 적용 */}
                 <button 
                     type="button" 
                     onClick={() => navigate('/dashboard')} 
-                    style={{ 
-                        background: '#FFFFFF', 
-                        border: '1px solid #EEEEEE', 
-                        borderRadius: '12px',
-                        cursor: 'pointer', 
-                        width: '40px',
-                        height: '40px',
-                        minWidth: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                        padding: 0
-                    }}
+                    className={styles.backBtn}
                 >
-                    <ArrowLeft size={20} color="#1A1A1A" />
+                    <ArrowLeft size={24} color="#1A1A1A" />
                 </button>
-                <h1 style={{ 
-                    fontSize: "24px", 
-                    fontWeight: 900, 
-                    color: "#1A1A1A", 
-                    margin: 0,
-                    letterSpacing: "-0.5px"
-                }}>
-                    마이페이지
-                </h1>
+                <h1 className={styles.title}>마이페이지</h1>
             </header>
 
             <main className={styles.mainContent}>
@@ -167,7 +134,6 @@ const MyPage = () => {
                     {activeTab === 'profile' && (
                         <div className={styles.card}>
                             <h2 className={styles.cardTitle}>프로필 설정</h2>
-                            
                             <div className={styles.inputGroup}>
                                 <label><User size={14} /> 이름</label>
                                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -187,8 +153,6 @@ const MyPage = () => {
                                     <span style={{ position: 'absolute', right: '16px', fontSize: '16px', fontWeight: 600, color: '#94A3B8' }}>상담사</span>
                                 </div>
                             </div>
-
-                            {/* [수정] 이메일 수정 가능 및 폰트 적용 */}
                             <div className={styles.inputGroup}>
                                 <label><Mail size={14} /> 이메일</label>
                                 <input 
@@ -198,8 +162,6 @@ const MyPage = () => {
                                     style={commonInputStyle}
                                 />
                             </div>
-
-                            {/* [수정] 소속/직급 수정 가능 및 폰트 적용 */}
                             <div className={styles.inputGroup}>
                                 <label><Shield size={14} /> 소속/직급</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -217,7 +179,6 @@ const MyPage = () => {
                                     />
                                 </div>
                             </div>
-
                             <button className={styles.saveBtn} onClick={handleSaveProfile}>
                                 <Save size={16} /> 변경 내용 저장
                             </button>
@@ -235,15 +196,30 @@ const MyPage = () => {
                             <div className={styles.memoList}>
                                 {displayMemos.length > 0 ? (
                                     displayMemos.map((memo, index) => (
-                                        <div key={`${memo.id}-${index}`} className={styles.memoItem} style={{ 
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #F3F4F6'
-                                        }}>
+                                        <div 
+                                            key={`${memo.id}-${index}`} 
+                                            className={styles.memoItem}
+                                            style={{ position: 'relative', paddingRight: '40px' }} // ✅ 버튼 겹침 방지 여백
+                                        >
                                             <div style={{ flex: 1 }}>
-                                                <p className={styles.memoContent} style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', color: '#334155' }}>
+                                                <p className={styles.memoContent}>
                                                     {memo.content}
                                                 </p>
                                             </div>
-                                            <button onClick={() => handleDeleteMemo(memo.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#94A3B8', marginLeft: '12px' }}>
+                                            {/* ✅ 우측 상단 배치 수정 */}
+                                            <button 
+                                                onClick={() => handleDeleteMemo(memo.id)} 
+                                                style={{ 
+                                                    position: 'absolute',
+                                                    top: '12px',
+                                                    right: '12px',
+                                                    background: 'none', 
+                                                    border: 'none', 
+                                                    cursor: 'pointer', 
+                                                    padding: '4px', 
+                                                    color: '#94A3B8'
+                                                }}
+                                            >
                                                 <X size={18} />
                                             </button>
                                         </div>
@@ -261,19 +237,19 @@ const MyPage = () => {
                             <div className={styles.statsGrid}>
                                 <div className={styles.statMiniCard}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ fontSize: '14px', color: '#64748B' }}>평균 응대 시간</span>
+                                        <span>평균 응대 시간</span>
                                         <TrendingUp size={16} color="#22C55E" />
                                     </div>
-                                    <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#1E293B' }}>04:25</h3>
-                                    <p style={{ color: '#22C55E', fontSize: '13px', marginTop: '4px', fontWeight: 600 }}>▲ 12s 개선됨</p>
+                                    <h3>04:25</h3>
+                                    <p style={{ color: '#22C55E' }}>▲ 12s 개선됨</p>
                                 </div>
                                 <div className={styles.statMiniCard}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ fontSize: '14px', color: '#64748B' }}>고객 만족도</span>
+                                        <span>고객 만족도</span>
                                         <TrendingUp size={16} color="#22C55E" />
                                     </div>
-                                    <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#1E293B' }}>4.8 / 5.0</h3>
-                                    <p style={{ color: '#22C55E', fontSize: '13px', marginTop: '4px', fontWeight: 600 }}>▲ 0.2점 상승</p>
+                                    <h3>4.8 / 5.0</h3>
+                                    <p style={{ color: '#22C55E' }}>▲ 0.2점 상승</p>
                                 </div>
                             </div>
                             <div style={{ marginTop: '40px' }}>

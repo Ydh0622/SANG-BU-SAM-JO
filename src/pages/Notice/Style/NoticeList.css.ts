@@ -4,7 +4,10 @@ const UPLUS_MAGENTA = "#E6007E";
 
 export const container = style({
     padding: "40px 24px",
-    backgroundColor: "#F8F9FC",
+    background: `
+        radial-gradient(ellipse at 0% 0%, rgba(230,0,126,0.04) 0%, transparent 40%),
+        #F8F9FC
+    `,
     minHeight: "100vh",
     display: "flex",
     justifyContent: "center",
@@ -15,22 +18,24 @@ export const contentWrapper = style({
     width: "100%",
 });
 
+/** ✅ 뒤로가기 버튼: Search 페이지와 동일한 효과 적용 */
 export const backButton = style({
+    width: "40px",
+    height: "40px",
+    border: "none",
+    background: "#FFF",
+    borderRadius: "12px",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    background: "none",
-    border: "none",
-    color: "#666",
-    fontSize: "15px",
-    fontWeight: 600,
-    cursor: "pointer",
-    marginBottom: "24px",
-    padding: "8px 0",
+    justifyContent: "center",
     transition: "all 0.2s ease",
+    marginBottom: "24px", // 기존 간격 유지
     ":hover": {
-        color: UPLUS_MAGENTA,
-        transform: "translateX(-4px)",
+        backgroundColor: "#F1F3F5",
+        transform: "translateX(-2px)", // 👈 왼쪽으로 2px 이동하는 포인트 효과
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
     },
 });
 
@@ -62,15 +67,17 @@ export const listItem = style({
     display: "grid",
     gridTemplateColumns: "100px 1fr 120px",
     alignItems: "center",
-    padding: "20px 0",
+    padding: "20px 8px",
     borderBottom: "1px solid #F3F4F6",
     cursor: "pointer",
     transition: "all 0.2s ease",
+    borderRadius: "12px",
     ":last-child": {
         borderBottom: "none",
     },
     ":hover": {
-        transform: "translateX(8px)",
+        transform: "translateX(6px)",
+        backgroundColor: "#FFF0F6",
     },
 });
 

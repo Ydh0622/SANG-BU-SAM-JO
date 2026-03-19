@@ -11,6 +11,12 @@ export interface LoginResponse {
   };
 }
 
+export interface MeResponse {
+  userId: number;
+  email: string;
+  role: string;
+}
+
 // 로컬 환경인지 확인 (Vite에서 제공하는 환경 변수)
 const isLocal = import.meta.env.DEV;
 
@@ -60,7 +66,7 @@ export const authApi = {
   /** [REQ-AUTH-004] 내 정보 조회 (토큰 검증용) */
   getMe: async () => {
     if (isLocal) {
-      return await apiStore.get<LoginResponse['user']>('/v1/users/me');
+      return await apiStore.get<MeResponse>('/v1/users/me');
     }
     // 시연용 가짜 정보 반환
     return { name: '상담사(시연용)', email: 'test@example.com' };

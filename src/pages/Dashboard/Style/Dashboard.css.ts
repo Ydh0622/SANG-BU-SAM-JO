@@ -104,7 +104,15 @@ export const headerContent = style({
     alignItems: "center",
 });
 
-export const brandLogo = style({ fontSize: "24px", fontWeight: 900 });
+export const brandLogo = style({
+    fontSize: "26px",
+    fontWeight: 900,
+    letterSpacing: "-0.04em",
+    background: `linear-gradient(135deg, ${UPLUS_MAGENTA} 0%, #FF4FA3 100%)`,
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+});
 export const magentaText = style({ color: UPLUS_MAGENTA });
 export const logoArea = style({ display: "flex", alignItems: "center" });
 export const headerRight = style({
@@ -146,7 +154,7 @@ export const notificationBadge = style({
     border: "2px solid #FFF",
 });
 
-/** 🔔 11. 알림 팝오버 스타일 (수정됨) */
+/** 🔔 11. 알림 팝오버 스타일 */
 export const notificationPopover = style({
     position: "absolute",
     top: "50px",
@@ -169,7 +177,6 @@ export const popoverHeader = style({
     alignItems: "center",
 });
 
-// 자식 요소들을 globalStyle로 분리하여 에러 해결
 globalStyle(`${popoverHeader} span`, {
     fontWeight: 800,
     fontSize: "15px",
@@ -296,24 +303,68 @@ export const logoutBtn = style({
 });
 
 export const heroCard = style({
-    background: "linear-gradient(135deg, #1A1A1A 0%, #333 100%)",
-    padding: "32px 48px",
+    background: "linear-gradient(135deg, #0D1117 0%, #161B2E 55%, #1A1F3C 100%)",
+    padding: "36px 48px",
     borderRadius: "40px",
     color: "#FFF",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06)",
+    position: "relative",
+    overflow: "hidden",
+    "::before": {
+        content: "''",
+        position: "absolute",
+        bottom: "-40%",
+        left: "20%",
+        width: "280px",
+        height: "280px",
+        background: `radial-gradient(circle, rgba(230,0,126,0.18) 0%, transparent 65%)`,
+        borderRadius: "50%",
+        pointerEvents: "none",
+    },
+    "::after": {
+        content: "''",
+        position: "absolute",
+        top: "-30%",
+        right: "-5%",
+        width: "320px",
+        height: "320px",
+        background: "radial-gradient(circle, rgba(100,120,255,0.08) 0%, transparent 65%)",
+        borderRadius: "50%",
+        pointerEvents: "none",
+    },
 });
 
 export const heroInfo = style({
     display: "flex",
     flexDirection: "column",
-    gap: "4px",
+    gap: "6px",
+    position: "relative",
+    zIndex: 1,
 });
 export const heroTitle = style({
     fontSize: "30px",
     fontWeight: 900,
     margin: 0,
+    letterSpacing: "-0.03em",
+    textShadow: "0 2px 20px rgba(0,0,0,0.3)",
+});
+export const heroBadge = style({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "4px 12px",
+    borderRadius: "100px",
+    backgroundColor: "rgba(230,0,126,0.2)",
+    border: "1px solid rgba(230,0,126,0.4)",
+    fontSize: "11px",
+    fontWeight: 800,
+    color: "#FF80BC",
+    letterSpacing: "0.04em",
+    width: "fit-content",
+    marginBottom: "4px",
 });
 
 export const statsGrid = style({
@@ -328,9 +379,14 @@ export const statCard = style({
     display: "flex",
     alignItems: "center",
     gap: "20px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.02)",
-    transition: "transform 0.3s ease",
-    ":hover": { transform: "translateY(-6px)" },
+    boxShadow: "0 4px 6px rgba(0,0,0,0.02), 0 10px 30px rgba(0,0,0,0.04)",
+    border: "1px solid rgba(0,0,0,0.04)",
+    transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    ":hover": {
+        transform: "translateY(-6px)",
+        boxShadow: "0 4px 6px rgba(0,0,0,0.04), 0 20px 40px rgba(230,0,126,0.10)",
+        borderColor: "rgba(230,0,126,0.1)",
+    },
 });
 
 export const statIcon = style({
@@ -363,34 +419,28 @@ export const alertBanner = style({
     animation: `${pulse} 2s infinite ease-in-out`,
 });
 
+/** ✅ 정렬을 위한 공통 베이스 스타일 */
+const badgeBase = style({
+    display: "inline-flex",   // 가로 배치
+    alignItems: "center",     // 수직 중앙 정렬
+    justifyContent: "center", // 수평 중앙 정렬
+    gap: "4px",               // 아이콘과 텍스트 사이 간격
+    padding: "4px 10px",
+    borderRadius: "6px",
+    fontSize: "11px",
+    fontWeight: 900,
+    lineHeight: 1,            // 폰트 라인박스를 줄여 수직 중앙 정렬 보정
+    flexShrink: 0,
+});
+
 export const alertLevelBadge = styleVariants({
-    CRITICAL: {
-        backgroundColor: UPLUS_MAGENTA,
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
-    HIGH: {
-        backgroundColor: "#F97316",
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
-    MID: {
-        backgroundColor: AI_BLUE,
-        color: "#FFF",
-        padding: "4px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: 900,
-        flexShrink: 0,
-    },
+    CRITICAL: [badgeBase, { backgroundColor: UPLUS_MAGENTA, color: "#FFF" }],
+    HIGH: [badgeBase, { backgroundColor: "#F97316", color: "#FFF" }],
+    MID: [badgeBase, { backgroundColor: AI_BLUE, color: "#FFF" }],
+});
+
+export const alertLevelText = style({
+    paddingTop: "1px",
 });
 
 export const alertText = style({
@@ -424,10 +474,11 @@ export const alertLinkBtn = style({
 /** 7. 리스트 섹션 */
 export const glassCard = style({
     backgroundColor: "#FFF",
-    padding: "24px",
+    padding: "28px",
     borderRadius: "32px",
-    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.04)",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.02), 0 12px 40px rgba(0, 0, 0, 0.05)",
     width: "100%",
+    border: "1px solid rgba(0,0,0,0.04)",
 });
 
 export const activityList = style({
@@ -705,22 +756,42 @@ export const secondaryBtn = style({
     cursor: "pointer",
 });
 export const workStartBtn = style({
-    padding: "12px 24px",
-    backgroundColor: UPLUS_MAGENTA,
+    padding: "12px 28px",
+    background: `linear-gradient(135deg, ${UPLUS_MAGENTA} 0%, #C5006C 100%)`,
     color: "#FFF",
     border: "none",
     borderRadius: "14px",
     fontWeight: 800,
+    fontSize: "14px",
     cursor: "pointer",
+    boxShadow: "0 4px 16px rgba(230, 0, 126, 0.45)",
+    transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    position: "relative",
+    zIndex: 1,
+    ":hover": {
+        transform: "translateY(-2px)",
+        boxShadow: "0 8px 24px rgba(230, 0, 126, 0.55)",
+    },
+    ":active": { transform: "scale(0.96)" },
 });
 export const workStopBtn = style({
-    padding: "12px 24px",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    color: "#FFF",
-    border: "1px solid rgba(255,255,255,0.3)",
+    padding: "12px 28px",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.85)",
+    border: "1px solid rgba(255,255,255,0.2)",
     borderRadius: "14px",
-    fontWeight: 800,
+    fontWeight: 700,
+    fontSize: "14px",
     cursor: "pointer",
+    backdropFilter: "blur(4px)",
+    transition: "all 0.2s ease",
+    position: "relative",
+    zIndex: 1,
+    ":hover": {
+        backgroundColor: "rgba(255,255,255,0.15)",
+        borderColor: "rgba(255,255,255,0.35)",
+        color: "#FFF",
+    },
 });
 export const cardHeader = style({
     display: "flex",
