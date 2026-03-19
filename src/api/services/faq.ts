@@ -36,19 +36,15 @@ export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisRe
       params: { question_text: questionText }
     });
 
-    // 2. [핵심] any 없이 데이터 위치 파악 (Type Guard)
-    // response 자체가 RawFaqResponse인지, 아니면 .data 안에 들어있는지 체크합니다.
     const data = (response as unknown as { data: RawFaqResponse }).data 
       ? (response as unknown as { data: RawFaqResponse }).data 
       : (response as unknown as RawFaqResponse);
 
-    // 3. 데이터가 비어있을 경우를 대비한 안전장치
     const retrievedFaqs = data?.retrieved_faqs ?? [];
 
-    // 4. 서버 필드명을 프론트엔드 필드명으로 매핑
     const mappedFaqList: FaqItem[] = retrievedFaqs.map((item) => ({
-      kbId: item.faq_id,      // faq_id -> kbId
-      request: item.question, // question -> request
+      kbId: item.faq_id,      
+      request: item.question, 
       answer: item.answer,
       productLineCode: null,
       customerLiked: false

@@ -201,7 +201,7 @@ const CustomerQA: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0 16px' }}>
                         <div style={{ flex: 1, height: '1px', backgroundColor: '#F1F5F9' }} />
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: '#FFF0F6', color: '#E6007E', padding: '5px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                            <Search size={12} /> {(dynamicFaqList || []).length}건
+                            <Search size={12} /> {(dynamicFaqList || []).length}관련 FAQ 건
                         </div>
                         <div style={{ flex: 1, height: '1px', backgroundColor: '#F1F5F9' }} />
                     </div>
