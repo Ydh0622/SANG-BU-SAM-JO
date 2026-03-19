@@ -24,7 +24,7 @@ export const adminStore = axios.create({
 });
 
 export const fastApiStore = axios.create({ 
-  baseURL: `${BASE_URL}/fast`, 
+  baseURL: `${BASE_URL}/fastapi`, 
   ...config 
 });
 
