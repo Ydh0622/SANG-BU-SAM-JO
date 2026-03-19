@@ -1,5 +1,5 @@
 import {
-    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History, Check
+    Clock, Eye, EyeOff, Mail, MessageSquare, Phone, Save, Send, Sparkles, Tag, User, Users, Search, ArrowLeft, AlertCircle, CheckCircle, X, FileDown, History, Check, Smartphone
 } from "lucide-react"; 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -186,7 +186,8 @@ const ConsultationDetail: React.FC = () => {
 
                 // 컨텍스트 캐시 조회 (최근 상담 + 성향)
                 try {
-                    const ctx = await getConsultationContext(customerId) as { data?: Record<string, unknown> } & Record<string, unknown>;
+                    // const ctx = await getConsultationContext(customerId) as { data?: Record<string, unknown> } & Record<string, unknown>;
+                    const { data: ctx } = await getConsultationContext(customerId);
                     const ctxData = (ctx?.data ?? ctx) as {
                         customer?: {
                             name?: string; grade?: string; gender?: string; age?: number;
@@ -447,6 +448,52 @@ const ConsultationDetail: React.FC = () => {
                             <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>성향 데이터가 없습니다.</p>
                         )}
                     </article>
+
+                    <article className={styles.card} style={{ marginTop: '16px' }}>
+    <h3 className={styles.cardTitle}><Smartphone size={18} color="#E6007E" /> 가입 서비스 정보</h3>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+        
+        {/* 현재 사용 기기 */}
+        <div style={{ paddingBottom: '10px', borderBottom: '1px dashed #eee' }}>
+            <p style={{ fontSize: '11px', color: '#999', margin: '0 0 4px' }}>현재 사용 기기</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#333' }}>아이폰 15 Pro (256GB)</span>
+                <span style={{ fontSize: '11px', color: '#E6007E', backgroundColor: '#FFF0F6', padding: '2px 6px', borderRadius: '4px' }}>D-18개월</span>
+            </div>
+            <p style={{ fontSize: '11px', color: '#666', margin: '4px 0 0' }}>잔여 할부금: 652,000원 (선택약정 25%)</p>
+        </div>
+
+        {/* 가입 요금제 */}
+        <div style={{ paddingBottom: '10px', borderBottom: '1px dashed #eee' }}>
+            <p style={{ fontSize: '11px', color: '#999', margin: '0 0 4px' }}>이용 중인 요금제</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#333' }}>5G 시그니처</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#444' }}>130,000원</span>
+            </div>
+            <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                <span style={{ fontSize: '10px', color: '#0056B3', border: '1px solid #BAD7F2', padding: '1px 4px', borderRadius: '3px' }}>데이터 무제한</span>
+                <span style={{ fontSize: '10px', color: '#0056B3', border: '1px solid #BAD7F2', padding: '1px 4px', borderRadius: '3px' }}>U+영화월정액</span>
+            </div>
+        </div>
+
+        {/* 부가 서비스 */}
+        <div>
+            <p style={{ fontSize: '11px', color: '#999', margin: '0 0 6px' }}>사용 중인 부가서비스</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {[
+                    { name: '유독 Pick (디즈니+)', price: '9,900원' },
+                    { name: '휴대폰 파손 보험', price: '4,500원' },
+                    { name: 'V컬러링', price: '3,300원' }
+                ].map((service, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span style={{ color: '#555' }}>• {service.name}</span>
+                        <span style={{ color: '#888' }}>{service.price}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+</article>
                 </aside>
 
                 <section className={styles.chatSection} style={{ flex: '1' }}>
