@@ -38,6 +38,7 @@ interface HistoryData {
 }
 
 const ConsultationHistory: React.FC = () => {
+    // App.tsx의 path="/history/:historyId"와 이름을 일치시킴
     const { historyId } = useParams<{ historyId: string }>();
     const navigate = useNavigate();
     const [isPhoneVisible, setIsPhoneVisible] = useState(false);
@@ -48,7 +49,12 @@ const ConsultationHistory: React.FC = () => {
     /** 서버에서 상세 데이터 가져오기 */
     useEffect(() => {
         const loadDetail = async () => {
-            if (!historyId) return;
+            // ID가 없으면 로딩 종료
+            if (!historyId) {
+                setIsLoading(false);
+                return;
+            }
+
             try {
                 setIsLoading(true);
                 const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -56,40 +62,49 @@ const ConsultationHistory: React.FC = () => {
                     TELEPHONE: "유선전화", ETC: "기타",
                 };
 
+                // API 호출
                 const detail = await getConsultationDetail(historyId);
-                if (!detail) return;
+                
+                if (!detail) {
+                    setHistoryData(null);
+                    return;
+                }
 
+                // 시간 계산 로직
                 const calcDuration = (start: string | null, end: string | null): string => {
                     if (!start || !end) return "-";
                     const diff = Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+                    if (diff < 0) return "0초";
                     const m = Math.floor(diff / 60);
                     const s = diff % 60;
                     return `${m}분 ${s}초`;
                 };
 
+                // 서버 데이터를 UI용 데이터로 매핑
                 setHistoryData({
                     consultation_id: String(detail.consultation_id),
                     started_at: detail.started_at ? detail.started_at.replace('T', ' ').split('.')[0] : "기록 없음",
-                    ended_at: detail.ended_at ? detail.ended_at.split('T')[1]?.split('.')[0] ?? "진행중" : "진행중",
+                    ended_at: detail.ended_at ? (detail.ended_at.includes('T') ? detail.ended_at.split('T')[1].split('.')[0] : detail.ended_at) : "진행중",
                     duration: calcDuration(detail.started_at, detail.ended_at),
                     customer_name: detail.customer_name || (detail.customer_id ? `고객 #${detail.customer_id}` : "이름 없음"),
                     mask_phone: detail.phone_mask || "정보 없음",
                     category_display: PRODUCT_LINE_LABEL[detail.product_line_code ?? ""] ?? "일반상담",
                     agent_name: detail.agent_name || (detail.agent_id ? `상담원 #${detail.agent_id}` : "미지정"),
-                    customer_request: detail.messages.find(m => m.sender_type === "CUSTOMER")?.content || detail.customer_request || "고객 요청 내역이 없습니다.",
+                    customer_request: detail.customer_request || "고객 요청 내역이 없습니다.",
                     agent_action: detail.agent_action || "조치 내역이 없습니다.",
                     summary_text: detail.summary_text || "요약 내역이 없습니다.",
-                    messages: detail.messages.map(m => ({
+                    messages: (detail.messages || []).map(m => ({
                         id: m.message_seq,
                         sender_type_code: (m.sender_type === "CUSTOMER" || m.sender_type === "AGENT" || m.sender_type === "SYSTEM")
                             ? m.sender_type
                             : "SYSTEM",
                         content: m.content,
-                        sent_at: "",
+                        sent_at: m.sent_at ? m.sent_at.split('T')[1]?.split('.')[0] : "", 
                     })),
                 });
             } catch (error) {
                 console.error("상세 데이터 로드 실패:", error);
+                setHistoryData(null);
             } finally {
                 setIsLoading(false);
             }
@@ -98,6 +113,7 @@ const ConsultationHistory: React.FC = () => {
         loadDetail();
     }, [historyId]);
 
+    // 로딩 상태 UI
     if (isLoading) {
         return (
             <div className={styles.container}>
@@ -108,24 +124,21 @@ const ConsultationHistory: React.FC = () => {
         );
     }
 
+    // 데이터가 없을 때 UI (404 대응)
     if (!historyData) {
         return (
             <div className={styles.container}>
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        <button 
-                            type="button" 
-                            onClick={() => navigate("/search")} 
-                            className={styles.backButton}
-                        >
+                        <button type="button" onClick={() => navigate("/search")} className={styles.backButton}>
                             <ArrowLeft size={24} color="#333" />
                         </button>
                         <h1 className={styles.title}>상담 기록 상세조회</h1>
                     </div>
                 </header>
                 <div style={{ padding: '100px 20px', textAlign: 'center' }}>
-                    <h2 style={{ color: '#E6007E', fontSize: '24px' }}>상담 기록 상세 정보를 찾을 수 없습니다.</h2>
-                    <p style={{ marginTop: '16px', color: '#666' }}>ID: {historyId}</p>
+                    <h2 style={{ color: '#E6007E', fontSize: '24px' }}>상담 기록을 찾을 수 없습니다. (ID: {historyId})</h2>
+                    <p style={{ marginTop: '16px', color: '#666' }}>해당 ID의 데이터가 존재하지 않거나 불러오는데 실패했습니다.</p>
                     <button onClick={() => navigate('/search')} style={{ marginTop: '30px', padding: '12px 24px', backgroundColor: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>목록으로 돌아가기</button>
                 </div>
             </div>
@@ -231,7 +244,7 @@ const ConsultationHistory: React.FC = () => {
                             historyData.messages.map((msg) => (
                                 <div key={msg.id} className={msg.sender_type_code === "CUSTOMER" ? styles.customerMsg : styles.agentMsg}>
                                     <div className={styles.bubble}>{msg.content}</div>
-                                    <time className={msg.sent_at === "기록 없음" ? "" : styles.msgTime}>{msg.sent_at}</time>
+                                    <time className={msg.sent_at === "" ? "" : styles.msgTime}>{msg.sent_at}</time>
                                 </div>
                             ))
                         ) : (
