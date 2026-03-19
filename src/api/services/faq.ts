@@ -1,4 +1,4 @@
-import axios from "axios";
+import { fastApiStore } from "../client"; 
 
 export interface FaqItem {
   faq_id: string;
@@ -12,17 +12,18 @@ export interface FaqAnalysisResponse {
   retrieved_faqs: FaqItem[];
 }
 
+/**
+ * FAQ 검색 API 호출 함수
+ */
 export const getSimilarFaq = async (questionText: string): Promise<FaqAnalysisResponse> => {
   try {
-    // 422 에러 해결을 위한 구조: 
-    // POST 요청이지만 데이터를 Body가 아닌 URL 파라미터(params)로 보냅니다.
-    const response = await axios.post('/fastapi/v1/search/faq', null, {
+    const response = await fastApiStore.post('/v1/search/faq', {}, {
       params: {
         question_text: questionText
       }
     });
-    
-    return response.data;
+    return response as unknown as FaqAnalysisResponse;
+
   } catch (err) {
     console.error("QA API 연결 실패:", err);
     return {
