@@ -48,17 +48,21 @@ const ConsultationSearch: React.FC = () => {
             const currentAgentId = storedId ? Number(storedId) : 0;
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
+            // [수정 핵심] 값이 있는 파라미터만 조건부로 할당 (FAQ 방식과 동일하게)
             const req: ConsultationSearchRequest = {
-                keyword: searchTerm.trim() || undefined,
-                agent_id: filter === "MINE" ? currentAgentId : undefined,
-                date_from: searchDate ? `${searchDate}T00:00:00` : undefined,
-                date_to: searchDate ? `${searchDate}T23:59:59` : undefined,
-                final_result_code: filter === "REPEAT" ? "TRANSFERRED" : undefined,
                 page: page,
                 size: itemsPerPage,
             };
 
-            // [수정 포인트] response가 undefined일 경우를 대비해 기본 객체 할당
+            if (searchTerm.trim()) req.keyword = searchTerm.trim();
+            if (filter === "MINE") req.agent_id = currentAgentId;
+            if (filter === "REPEAT") req.final_result_code = "TRANSFERRED";
+            if (searchDate) {
+                req.date_from = `${searchDate}T00:00:00`;
+                req.date_to = `${searchDate}T23:59:59`;
+            }
+
+            // 수정된 search.ts (params 방식)를 통해 데이터 호출
             const response: ConsultationSearchResponse = await searchConsultations(req) || {
                 hits: [],
                 total: 0,
@@ -66,7 +70,6 @@ const ConsultationSearch: React.FC = () => {
                 size: itemsPerPage
             };
             
-            // response.hits에 안전하게 접근
             const hits: ConsultationSearchHit[] = response.hits || [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
@@ -118,11 +121,11 @@ const ConsultationSearch: React.FC = () => {
         fetchSearchData(1, activeFilter);
     }, [activeFilter, searchDate, fetchSearchData]);
 
-    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    const totalPages = Math.ceil(totalCount / itemsPerPage) || 1;
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
     const startPage = (currentBlock - 1) * pagesPerBlock + 1;
     const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
-    const currentBlockPages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+    const currentBlockPages = Array.from({ length: Math.max(0, endPage - startPage + 1) }, (_, i) => startPage + i);
 
     const handleCalendarClick = () => {
         if (dateInputRef.current) {
