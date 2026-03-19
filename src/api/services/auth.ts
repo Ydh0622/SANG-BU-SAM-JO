@@ -1,10 +1,11 @@
 import { apiStore } from '../client';
 
 /**
- * [상부상조] 인증 관련 API 서비스
+ * [상부상조] 인증 관련 API 서비스 타입 정의
  */
 export interface LoginResponse {
-  accessToken: string;
+  token: string;         // 백엔드 응답 필드명 'token' 반영
+  refreshToken: string;  // 재발급을 위해 필수 저장
   user: {
     name: string;
     email: string;
@@ -14,63 +15,52 @@ export interface LoginResponse {
 export interface MeResponse {
   userId: number;
   email: string;
+  name: string;
   role: string;
 }
-
-// 로컬 환경인지 확인 (Vite에서 제공하는 환경 변수)
-const isLocal = import.meta.env.DEV;
 
 export const authApi = {
   /** [REQ-AUTH-001] 구글 로그인 */
   loginWithGoogle: async (idToken: string): Promise<LoginResponse> => {
-    // 1. 로컬 환경일 때: 실제 백엔드 서버와 통신
-    if (isLocal) {
-      return await apiStore.post<LoginResponse, LoginResponse>('/v1/auth/google', { idToken });
+   
+    // 인터셉터에서 response.data.data를 반환하므로 LoginResponse로 타입을 확정합니다.
+    const data = (await apiStore.post<LoginResponse>('/v1/auth/google', {
+      idToken,
+    })) as unknown as LoginResponse;
+
+    
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem('refreshToken', data.refreshToken);
+    }
+    if (data.user?.name) {
+      localStorage.setItem('userName', data.user.name);
     }
 
-    // 2. Vercel 배포 환경일 때: 멘토링용 가짜 데이터 반환
-    console.warn("시연용 모드: 백엔드 없이 로그인을 승인합니다.");
-    
-    // 가짜 딜레이를 주어 실제 통신하는 느낌을 줍니다 (선택 사항)
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const mockResponse: LoginResponse = {
-      accessToken: 'mentoring-sample-token-12345',
-      user: {
-        name: '고길동(시연용)',
-        email: 'test@example.com'
-      }
-    };
-
-    // 로컬 스토리지에 가짜 토큰 저장 (로그인 유지 효과)
-    localStorage.setItem('token', mockResponse.accessToken);
-    localStorage.setItem('userName', mockResponse.user.name);
-
-    return mockResponse;
+    return data;
   },
 
   /** [REQ-AUTH-002] 토큰 재발급 */
-  refresh: () => apiStore.post<LoginResponse, LoginResponse>('/v1/auth/refresh'),
+  refresh: () => apiStore.post<LoginResponse>('/v1/auth/refresh'),
 
   /** [REQ-AUTH-003] 로그아웃 */
-  logout: () => {
-    if (!isLocal) {
+  logout: async (): Promise<void> => {
+    try {
+      await apiStore.post('/v1/auth/logout');
+    } catch (error) {
+      console.error('로그아웃 서버 통신 실패:', error);
+    } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('userName');
       window.location.href = '/';
-      return Promise.resolve();
     }
-    return apiStore.post('/v1/auth/logout');
   },
 
-  /** [REQ-AUTH-004] 내 정보 조회 (토큰 검증용) */
-  getMe: async () => {
-    if (isLocal) {
-      return await apiStore.get<MeResponse>('/v1/users/me');
-    }
-    // 시연용 가짜 정보 반환
-    return { name: '상담사(시연용)', email: 'test@example.com' };
-  },
+  /** [REQ-AUTH-004] 내 정보 조회 */
+  getMe: () => apiStore.get<MeResponse>('/v1/users/me'),
 };
 
 export default authApi;
