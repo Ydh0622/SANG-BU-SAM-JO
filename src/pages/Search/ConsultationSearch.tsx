@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { searchConsultations } from "../../api/services/search";
-import type { ConsultationSearchHit, ConsultationSearchRequest } from "../../api/services/search";
+import type { ConsultationSearchHit, ConsultationSearchRequest, ConsultationSearchResponse } from "../../api/services/search";
 import * as styles from "./Style/Search.css.ts";
 
 /** UI 표시용 검색 결과 인터페이스 */
@@ -48,7 +48,6 @@ const ConsultationSearch: React.FC = () => {
             const currentAgentId = storedId ? Number(storedId) : 0;
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
-            // API 요청 객체 (ConsultationSearchRequest 타입 준수)
             const req: ConsultationSearchRequest = {
                 keyword: searchTerm.trim() || undefined,
                 agent_id: filter === "MINE" ? currentAgentId : undefined,
@@ -59,10 +58,16 @@ const ConsultationSearch: React.FC = () => {
                 size: itemsPerPage,
             };
 
-            const response = await searchConsultations(req);
+            // [수정 포인트] response가 undefined일 경우를 대비해 기본 객체 할당
+            const response: ConsultationSearchResponse = await searchConsultations(req) || {
+                hits: [],
+                total: 0,
+                page: page,
+                size: itemsPerPage
+            };
             
-            // 데이터 추출 및 타입 안정성 확보
-            const hits: ConsultationSearchHit[] = response.hits;
+            // response.hits에 안전하게 접근
+            const hits: ConsultationSearchHit[] = response.hits || [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
                 MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
@@ -70,17 +75,14 @@ const ConsultationSearch: React.FC = () => {
             };
 
             const converted: SearchResult[] = hits.map((item: ConsultationSearchHit) => {
-                // 날짜 포맷팅: "2026-03-17T01:53:49" -> "2026.03.17"
                 const rawDate = item.started_at || item.ended_at;
                 const formattedDate = rawDate 
                     ? rawDate.split('T')[0].replace(/-/g, '.') 
                     : "날짜 없음";
 
-                // 내 상담 여부
                 const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
                 const resultCode = item.final_result_code || "";
                 
-                // 상태값 매핑
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
                     resultCode === "DONE" ? "COMPLETED" : "PENDING";
@@ -88,7 +90,6 @@ const ConsultationSearch: React.FC = () => {
                 return {
                     id: String(item.consultation_id),
                     date: formattedDate,
-                    // null 데이터 방어: 이름이 없으면 ID 표시
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
                     category: PRODUCT_LINE_LABEL[item.product_line_code || ""] || "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
@@ -100,7 +101,7 @@ const ConsultationSearch: React.FC = () => {
             });
 
             setAllResults(converted);
-            setTotalCount(response.total);
+            setTotalCount(response.total || 0);
             setCurrentPage(page);
 
         } catch (error) {
@@ -291,6 +292,7 @@ const ConsultationSearch: React.FC = () => {
                             {totalPages > 1 && (
                                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4px", marginTop: "32px", paddingBottom: "40px" }}>
                                     <button 
+                                        type="button"
                                         disabled={currentPage <= pagesPerBlock}
                                         onClick={() => handlePageChange(currentPage - pagesPerBlock)}
                                         style={paginationArrowStyle(currentPage <= pagesPerBlock)}
@@ -298,6 +300,7 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronsLeft size={18} />
                                     </button>
                                     <button 
+                                        type="button"
                                         disabled={currentPage === 1}
                                         onClick={() => handlePageChange(currentPage - 1)}
                                         style={paginationArrowStyle(currentPage === 1)}
@@ -308,6 +311,7 @@ const ConsultationSearch: React.FC = () => {
                                         {currentBlockPages.map((num: number) => (
                                             <button
                                                 key={num}
+                                                type="button"
                                                 onClick={() => handlePageChange(num)}
                                                 style={{
                                                     width: "36px", height: "36px", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700,
@@ -321,6 +325,7 @@ const ConsultationSearch: React.FC = () => {
                                         ))}
                                     </div>
                                     <button 
+                                        type="button"
                                         disabled={currentPage === totalPages}
                                         onClick={() => handlePageChange(currentPage + 1)}
                                         style={paginationArrowStyle(currentPage === totalPages)}
@@ -328,6 +333,7 @@ const ConsultationSearch: React.FC = () => {
                                         <ChevronRight size={18} />
                                     </button>
                                     <button 
+                                        type="button"
                                         disabled={Math.ceil(currentPage / pagesPerBlock) === Math.ceil(totalPages / pagesPerBlock)}
                                         onClick={() => handlePageChange(currentPage + pagesPerBlock)}
                                         style={paginationArrowStyle(Math.ceil(currentPage / pagesPerBlock) === Math.ceil(totalPages / pagesPerBlock))}
