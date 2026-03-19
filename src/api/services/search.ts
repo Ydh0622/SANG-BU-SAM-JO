@@ -1,5 +1,8 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
+// --- Interfaces (타입 정의) ---
+
+/** 검색 결과 개별 항목 */
 export interface ConsultationSearchHit {
     consultation_id: number;
     summary_text: string;
@@ -13,6 +16,7 @@ export interface ConsultationSearchHit {
     ended_at: string | null;
 }
 
+/** 검색 결과 응답 구조 */
 export interface ConsultationSearchResponse {
     hits: ConsultationSearchHit[];
     total: number;
@@ -20,6 +24,7 @@ export interface ConsultationSearchResponse {
     size: number;
 }
 
+/** 검색 요청 파라미터 */
 export interface ConsultationSearchRequest {
     keyword?: string;
     agent_id?: number;
@@ -30,12 +35,14 @@ export interface ConsultationSearchRequest {
     size?: number;
 }
 
+/** 메시지 상세 내역 */
 export interface ConsultationMessageDetail {
     message_seq: number;
     sender_type: string;
     content: string;
 }
 
+/** 상담 상세 정보 응답 구조 */
 export interface ConsultationDetailResponse {
     consultation_id: number;
     started_at: string | null;
@@ -53,29 +60,55 @@ export interface ConsultationDetailResponse {
     messages: ConsultationMessageDetail[];
 }
 
+// --- API Instance (FastAPI 전용 인스턴스) ---
+
+/** * baseURL을 환경에 따라 분기하여 
+ * 코드 내에서 매번 전체 주소를 적지 않도록 설정했습니다.
+ */
+const fastApiStore = axios.create({
+    baseURL: import.meta.env.PROD ? '' : 'http://localhost:8000',
+    headers: { 'Content-Type': 'application/json' }
+});
+
+// --- API Functions (비즈니스 로직) ---
+
+/** * 상담 상세 조회 API
+ * @param consultationId 상담 고유 ID
+ */
 export const getConsultationDetail = async (consultationId: string | number): Promise<ConsultationDetailResponse | null> => {
     try {
-        const response = await axios.get(`/fastapi/v1/consultations/${consultationId}`);
+        // 제네릭 <ConsultationDetailResponse>을 사용하여 any 없이 타입 지정
+        const response = await fastApiStore.get<ConsultationDetailResponse>(`/fastapi/v1/consultations/${consultationId}`);
         return response.data;
     } catch (error) {
-        console.error("상담 상세 조회 실패:", error);
+        const err = error as AxiosError;
+        console.error("상담 상세 조회 실패:", err.response?.status, err.message);
         return null;
     }
 };
 
+/** * ES 기반 상담 내역 검색 API (POST)
+ * @param req 검색 필터 및 페이지네이션 정보
+ */
 export const searchConsultations = async (req: ConsultationSearchRequest): Promise<ConsultationSearchResponse> => {
     try {
-        const response = await axios.post('/fastapi/v1/search/consultations', req, {
-            headers: { 'Content-Type': 'application/json' }
-        });
+        // 제네릭 <ConsultationSearchResponse>을 사용하여 any 없이 타입 지정
+        const response = await fastApiStore.post<ConsultationSearchResponse>('/fastapi/v1/search/consultations', req);
         return response.data;
     } catch (error) {
-        console.error("ES 상담 검색 실패:", error);
-        return { hits: [], total: 0, page: req.page ?? 1, size: req.size ?? 10 };
+        const err = error as AxiosError;
+        console.error("ES 상담 검색 실패:", err.response?.status, err.message);
+        return { 
+            hits: [], 
+            total: 0, 
+            page: req.page ?? 1, 
+            size: req.size ?? 10 
+        };
     }
 };
 
-// 하위 호환용 - 기존 코드에서 사용하던 타입들 유지
+// --- 하위 호환 및 기타 인터페이스 유지 ---
+
 export interface ApiConsultationItem {
     consultationId: number;
     customerName: string;
