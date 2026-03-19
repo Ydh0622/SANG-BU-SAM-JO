@@ -11,9 +11,22 @@ const config: AxiosRequestConfig = {
 };
 
 // 각 도메인별 스토어 생성
-export const apiStore = axios.create({ baseURL: '/api', ...config });
-export const adminStore = axios.create({ baseURL: '/admin', ...config });
-export const fastApiStore = axios.create({ baseURL: '/fastapi', ...config });
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+export const apiStore = axios.create({ 
+  baseURL: `${BASE_URL}/api`, 
+  ...config 
+});
+
+export const adminStore = axios.create({ 
+  baseURL: `${BASE_URL}/admin`, 
+  ...config 
+});
+
+export const fastApiStore = axios.create({ 
+  baseURL: `${BASE_URL}/fast`, 
+  ...config 
+});
 
 let isRefreshing = false;
 let refreshSubscribers: ((token: string) => void)[] = [];
