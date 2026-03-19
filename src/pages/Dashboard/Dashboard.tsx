@@ -488,7 +488,6 @@ const Dashboard: React.FC = () => {
                             ) : (
                                 <div className={styles.activityList}>
     {activities.slice(0, 5).map((item, idx) => {
-        // [수정] id 추출 방식을 더 확실하게 (item이 null인 경우 방어)
         const res = item as ConsultationResponse;
         const id = res.consultationId || res.consultation_id;
         
