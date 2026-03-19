@@ -56,7 +56,9 @@ const ConsultationSearch: React.FC = () => {
     const loadSearchData = useCallback(async (page = 1, filter = activeFilter) => {
         try {
             setIsLoading(true);
-            const currentAgentId = Number(localStorage.getItem("userId") || 0);
+            // 1. 사용자 정보 안전하게 가져오기
+            const storedId = localStorage.getItem("userId");
+            const currentAgentId = storedId ? Number(storedId) : 0;
             const currentAgentName = localStorage.getItem("userName") || "상담원";
 
             const req = {
@@ -71,38 +73,35 @@ const ConsultationSearch: React.FC = () => {
 
             const response = await searchConsultations(req);
             
-            // 1. 응답 데이터 안전하게 추출 (Optional Chaining)
-            const hits: ConsultationSearchHit[] = response?.hits ?? [];
+            // 2. 응답 데이터 추출 (배열 보장)
+            const hits: ConsultationSearchHit[] = response?.hits || [];
 
             const PRODUCT_LINE_LABEL: Record<string, string> = {
                 MOBILE: "모바일", INTERNET: "인터넷", IPTV: "IPTV",
                 TELEPHONE: "유선전화", ETC: "기타",
             };
 
-            // 2. 데이터 변환 (서버 snake_case 필드명에 맞게 수정)
+            // 3. 데이터 변환 (Null 및 타입 에러 원천 차단)
             const converted: SearchResult[] = hits.map((item) => {
-                const rawDate = item.started_at || item.ended_at || new Date().toISOString();
+                const rawDate = item.ended_at || item.started_at || new Date().toISOString();
                 const d = new Date(rawDate);
                 const formattedDate = isNaN(d.getTime()) 
                     ? "날짜 없음" 
                     : `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-                // 타입 차이 방지를 위해 Number() 처리 및 엄격한 비교
                 const isMine = item.agent_id !== null && Number(item.agent_id) === currentAgentId;
-                const resultCode = item.final_result_code ?? "";
+                const resultCode = item.final_result_code || "";
                 
                 const processStatus: SearchResult["process_status"] =
                     resultCode === "TRANSFERRED" ? "TRANSFERRED" :
                     resultCode === "DONE" ? "COMPLETED" : "PENDING";
 
                 return {
-                    id: String(item.consultation_id),
+                    id: String(item.consultation_id || Math.random()),
                     date: formattedDate,
-                    // customer_name이 null이면 ID 표시 (서버 데이터 반영)
                     customer: item.customer_name || (item.customer_id ? `고객 #${item.customer_id}` : "이름 없음"),
-                    category: PRODUCT_LINE_LABEL[item.product_line_code ?? ""] ?? "일반상담",
+                    category: PRODUCT_LINE_LABEL[item.product_line_code || ""] || "일반상담",
                     summary: item.summary_text || "상담 기록이 없습니다.",
-                    // agent_name이 null이면 ID 표시
                     agent: isMine ? currentAgentName : (item.agent_name || (item.agent_id ? `상담원 #${item.agent_id}` : "미지정")),
                     is_mine: isMine,
                     is_repeat: resultCode === "TRANSFERRED",
@@ -110,23 +109,25 @@ const ConsultationSearch: React.FC = () => {
                 };
             });
 
-            // 3. 상태 업데이트 및 콘솔 로그로 확인
+            // 4. 상태 업데이트 (리렌더링 보장)
             setAllResults(converted);
-            setTotalCount(response?.total ?? 0);
+            setTotalCount(response?.total || 0);
             setCurrentPage(page);
+
         } catch (error) {
-            console.error("상담 내역 로드 실패:", error);
+            console.error("데이터 로드 중 치명적 에러:", error);
             setAllResults([]);
             setTotalCount(0);
         } finally {
+            // 5. 로딩 종료 확실히 처리
             setIsLoading(false);
         }
     }, [searchTerm, searchDate, activeFilter, itemsPerPage]);
 
+    // 초기 로딩 로직 단순화 (무한 루프 방지 및 최초 실행 보장)
     useEffect(() => {
         loadSearchData(1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [activeFilter, searchDate, loadSearchData]);
 
     const totalPages = Math.ceil(totalCount / itemsPerPage);
     const currentBlock = Math.ceil(currentPage / pagesPerBlock);
@@ -142,8 +143,7 @@ const ConsultationSearch: React.FC = () => {
     };
 
     const handlePageChange = (page: number) => {
-        const targetPage = Math.max(1, Math.min(page, totalPages));
-        loadSearchData(targetPage);
+        loadSearchData(page);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -158,6 +158,7 @@ const ConsultationSearch: React.FC = () => {
                 </h1>
             </header>
 
+            {/* 필터 탭 영역 */}
             <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {[
                     { label: "전체 내역", value: "ALL", icon: <Filter size={16} /> },
@@ -167,7 +168,7 @@ const ConsultationSearch: React.FC = () => {
                     <button
                         key={btn.value}
                         type="button"
-                        onClick={() => { setActiveFilter(btn.value); loadSearchData(1, btn.value); }}
+                        onClick={() => { setActiveFilter(btn.value); setCurrentPage(1); }}
                         style={{
                             display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "16px",
                             fontSize: "14px", fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
@@ -182,6 +183,7 @@ const ConsultationSearch: React.FC = () => {
                 ))}
             </div>
 
+            {/* 검색 및 기간 설정 영역 */}
             <section className={styles.filterSection}>
                 <div className={styles.filterGrid}>
                     <div className={styles.inputGroup}>
@@ -297,6 +299,7 @@ const ConsultationSearch: React.FC = () => {
                                 </tbody>
                             </table>
 
+                            {/* 페이지네이션 */}
                             {totalPages > 1 && (
                                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4px", marginTop: "32px", paddingBottom: "40px" }}>
                                     <button 
